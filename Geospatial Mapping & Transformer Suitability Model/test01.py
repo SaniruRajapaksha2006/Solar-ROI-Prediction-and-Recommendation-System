@@ -448,7 +448,7 @@ if __name__ == "__main__":
     # Example usage
     results = assess_transformer_suitability(
         user_location="6.848917321,79.92456012",  # Colombo, Sri Lanka
-        solar_forecast_kW=5.0,  # 5 kW rooftop solar system
+        solar_forecast_kW=1.0,  # 5 kW rooftop solar system
         transformer_csv_path=r"C:\Users\dewmi\OneDrive\Documents\IIT\2nd Year\DSGP\MASTER_DATASET_ALL_10TRANSFORMERS.csv",        search_radius_m=500,
         output_map_file="transformer_suitability_map.html"
     )
