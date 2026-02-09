@@ -1,0 +1,426 @@
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Transformer Suitability Assessment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px rgba(0, 0, 0, 0.1);
+        }
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app"></div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+
+        class App {
+            constructor() {
+                this.state = {
+                    location: '6.848917321,79.92456012',
+                    solarCapacity: 5.0,
+                    searchRadius: 500,
+                    loading: false,
+                    results: null,
+                    activeTab: 'overview',
+                    error: null
+                };
+            }
+
+            setState(updates) {
+                this.state = { ...this.state, ...updates };
+                this.render();
+            }
+
+            handleInputChange(name, value) {
+                const numFields = ['solarCapacity', 'searchRadius'];
+                this.setState({
+                    [name]: numFields.includes(name) ? parseFloat(value) : value
+                });
+            }
+
+            async handleAssess() {
+                const { location, solarCapacity, searchRadius } = this.state;
+
+                if (!location.trim()) {
+                    this.setState({ error: 'Please enter a location' });
+                    return;
+                }
+
+                this.setState({ loading: true, error: null });
+
+                try {
+                    const response = await fetch(`${API_URL}/api/assess`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            location,
+                            solarCapacity,
+                            searchRadius
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Assessment failed');
+                    }
+
+                    const data = await response.json();
+                    this.setState({
+                        results: data,
+                        activeTab: 'overview',
+                        loading: false
+                    });
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.setState({
+                        error: `Connection error: ${error.message}`,
+                        loading: false
+                    });
+                }
+            }
+
+            getSuitabilityColor(score) {
+                if (score >= 80) return '#10b981';
+                if (score >= 50) return '#f59e0b';
+                return '#ef4444';
+            }
+
+            getSuitabilityBg(score) {
+                if (score >= 80) return 'bg-emerald-50 border-emerald-200';
+                if (score >= 50) return 'bg-amber-50 border-amber-200';
+                return 'bg-red-50 border-red-200';
+            }
+
+            renderHeader() {
+                return `
+                    <div class="gradient-bg text-white shadow-lg">
+                        <div class="max-w-7xl mx-auto px-6 py-8">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fas fa-bolt text-4xl"></i>
+                                <h1 class="text-4xl font-bold">Solar Transformer Suitability</h1>
+                            </div>
+                            <p class="text-blue-100 text-lg">Assess your rooftop solar installation against grid constraints</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderInputSection() {
+                return `
+                    <div class="bg-white rounded-xl shadow-lg p-8 mb-8 border-t-4 border-blue-600">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">Assessment Parameters</h2>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-map-pin mr-2"></i>Location (Lat, Lon)
+                                </label>
+                                <input
+                                    type="text"
+                                    id="location"
+                                    value="${this.state.location}"
+                                    placeholder="6.849, 79.925"
+                                    onchange="window.app.handleInputChange('location', this.value)"
+                                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-600 focus:outline-none transition"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Format: latitude,longitude</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-flash mr-2"></i>Solar Capacity (kW)
+                                </label>
+                                <input
+                                    type="number"
+                                    id="solarCapacity"
+                                    value="${this.state.solarCapacity}"
+                                    step="0.5"
+                                    min="1"
+                                    max="50"
+                                    onchange="window.app.handleInputChange('solarCapacity', this.value)"
+                                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-600 focus:outline-none transition"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Predicted peak capacity</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-chart-line mr-2"></i>Search Radius (m)
+                                </label>
+                                <input
+                                    type="number"
+                                    id="searchRadius"
+                                    value="${this.state.searchRadius}"
+                                    step="100"
+                                    min="100"
+                                    max="2000"
+                                    onchange="window.app.handleInputChange('searchRadius', this.value)"
+                                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-600 focus:outline-none transition"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Find transformers within this range</p>
+                            </div>
+                        </div>
+
+                        ${this.state.error ? `
+                            <div class="bg-red-100 border-l-4 border-red-600 text-red-800 p-4 mb-4">
+                                <p class="font-semibold"><i class="fas fa-exclamation-circle mr-2"></i>${this.state.error}</p>
+                            </div>
+                        ` : ''}
+
+                        <button
+                            onclick="window.app.handleAssess()"
+                            ${this.state.loading ? 'disabled' : ''}
+                            class="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white py-3 rounded-lg font-bold text-lg hover:shadow-lg transition transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            ${this.state.loading ? `<div class="flex items-center justify-center gap-2"><div class="loader"></div>Assessing...</div>` : 'Run Assessment'}
+                        </button>
+                    </div>
+                `;
+            }
+
+            renderResults() {
+                if (!this.state.results) return '';
+
+                const { results, activeTab } = this.state;
+                const { transformers } = results;
+
+                return `
+                    <div class="space-y-8">
+                        <!-- Summary Card -->
+                        <div class="bg-white rounded-xl shadow-lg p-8 border-l-4 border-blue-600">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-6">Assessment Summary</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                    <p class="text-sm text-gray-600 mb-1">Location</p>
+                                    <p class="font-bold text-gray-800">${results.userLocation}</p>
+                                </div>
+                                <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                                    <p class="text-sm text-gray-600 mb-1">Solar System</p>
+                                    <p class="font-bold text-gray-800">${results.solarForecast} kW</p>
+                                </div>
+                                <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                                    <p class="text-sm text-gray-600 mb-1">Transformers Found</p>
+                                    <p class="font-bold text-gray-800">${transformers.length}</p>
+                                </div>
+                                <div class="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                                    <p class="text-sm text-gray-600 mb-1">Top Suitability</p>
+                                    <p class="font-bold text-gray-800">${transformers[0].score.toFixed(1)}/100</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tabs -->
+                        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                            <div class="flex border-b border-gray-200">
+                                ${['overview', 'detailed', 'comparison'].map(tab => `
+                                    <button
+                                        onclick="window.app.setState({activeTab: '${tab}'})"
+                                        class="flex-1 px-6 py-4 font-semibold transition ${
+                                            activeTab === tab
+                                                ? 'bg-blue-600 text-white'
+                                                : 'text-gray-700 hover:bg-gray-50'
+                                        }"
+                                    >
+                                        ${tab.charAt(0).toUpperCase() + tab.slice(1)} View
+                                    </button>
+                                `).join('')}
+                            </div>
+
+                            <div class="p-8">
+                                ${activeTab === 'overview' ? this.renderOverviewTab(transformers) : ''}
+                                ${activeTab === 'detailed' ? this.renderDetailedTab(transformers) : ''}
+                                ${activeTab === 'comparison' ? this.renderComparisonTab(transformers) : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderOverviewTab(transformers) {
+                return transformers.map((tf, idx) => `
+                    <div class="border-2 rounded-lg p-6 transition mb-6 ${this.getSuitabilityBg(tf.score)}">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">#${tf.rank} - Transformer ${tf.code}</h3>
+                                <p class="text-gray-600">Distance: ${tf.distance.toFixed(1)}m</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="inline-block bg-white rounded-full p-4 shadow">
+                                    <p class="text-3xl font-bold" style="color: ${this.getSuitabilityColor(tf.score)}">${tf.score.toFixed(1)}</p>
+                                    <p class="text-xs text-gray-600">Score</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <p class="text-xs text-gray-600">Capacity</p>
+                                <p class="font-bold text-gray-800">${tf.capacity} kW</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600">Current Load</p>
+                                <p class="font-bold text-gray-800">${tf.currentLoad.toFixed(1)} kW</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600">Util. Before</p>
+                                <p class="font-bold text-gray-800">${tf.utilizationBefore.toFixed(1)}%</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600">Util. After</p>
+                                <p class="font-bold" style="color: ${tf.utilizationAfter > 85 ? '#ef4444' : '#10b981'}">${tf.utilizationAfter.toFixed(1)}%</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-3 mb-4">
+                            ${tf.canSupport ? `<span class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-semibold"><i class="fas fa-check-circle mr-1"></i>Can Support</span>` : ''}
+                            ${tf.curtailmentRisk ? `<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-semibold"><i class="fas fa-exclamation-circle mr-1"></i>Curtailment Risk</span>` : ''}
+                        </div>
+
+                        <p class="text-sm font-semibold text-gray-700 p-3 bg-white rounded border-l-4" style="border-color: ${this.getSuitabilityColor(tf.score)}">
+                            ${tf.recommendation}
+                        </p>
+                    </div>
+                `).join('');
+            }
+
+            renderDetailedTab(transformers) {
+                return transformers.map((tf, idx) => `
+                    <div class="border rounded-lg p-6 space-y-4 mb-6">
+                        <h3 class="text-lg font-bold text-gray-800">Transformer ${tf.code} - Detailed Analysis</h3>
+
+                        <div class="bg-gray-50 p-4 rounded">
+                            <h4 class="font-semibold text-gray-800 mb-3">Capacity Breakdown</h4>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span>Capacity:</span>
+                                    <span class="font-bold">${tf.capacity} kW</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Current Load:</span>
+                                    <span class="font-bold">${tf.currentLoad.toFixed(1)} kW</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Existing Solar:</span>
+                                    <span class="font-bold">${tf.existingSolar.toFixed(1)} kW</span>
+                                </div>
+                                <div class="flex justify-between border-t pt-2 mt-2">
+                                    <span>Your New Solar:</span>
+                                    <span class="font-bold text-green-600">+ ${tf.newSolar} kW</span>
+                                </div>
+                                <div class="flex justify-between border-t pt-2 mt-2">
+                                    <span>Total After:</span>
+                                    <span class="font-bold text-blue-600">${(tf.currentLoad + tf.existingSolar + tf.newSolar).toFixed(1)} kW</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 p-4 rounded">
+                            <h4 class="font-semibold text-gray-800 mb-3">Load Progression</h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span>Before: ${tf.utilizationBefore.toFixed(1)}%</span>
+                                    </div>
+                                    <div class="w-full bg-gray-300 rounded-full h-2">
+                                        <div class="bg-blue-500 h-2 rounded-full" style="width: ${Math.min(tf.utilizationBefore, 100)}%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span>After: ${tf.utilizationAfter.toFixed(1)}%</span>
+                                    </div>
+                                    <div class="w-full bg-gray-300 rounded-full h-2">
+                                        <div class="h-2 rounded-full" style="width: ${Math.min(tf.utilizationAfter, 100)}%; background-color: ${tf.utilizationAfter > 85 ? '#ef4444' : '#10b981'}"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            renderComparisonTab(transformers) {
+                return `
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-100 border-b-2">
+                                    <th class="px-4 py-3 text-left font-bold">Transformer</th>
+                                    <th class="px-4 py-3 text-center font-bold">Score</th>
+                                    <th class="px-4 py-3 text-center font-bold">Distance</th>
+                                    <th class="px-4 py-3 text-center font-bold">Before</th>
+                                    <th class="px-4 py-3 text-center font-bold">After</th>
+                                    <th class="px-4 py-3 text-center font-bold">Support</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${transformers.map((tf, idx) => `
+                                    <tr class="border-b hover:bg-gray-50">
+                                        <td class="px-4 py-3 font-bold">${tf.code}</td>
+                                        <td class="px-4 py-3 text-center">
+                                            <span class="inline-block font-bold" style="color: ${this.getSuitabilityColor(tf.score)}">${tf.score.toFixed(1)}</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-center">${tf.distance.toFixed(1)}m</td>
+                                        <td class="px-4 py-3 text-center">${tf.utilizationBefore.toFixed(1)}%</td>
+                                        <td class="px-4 py-3 text-center" style="color: ${tf.utilizationAfter > 85 ? '#ef4444' : '#10b981'}">${tf.utilizationAfter.toFixed(1)}%</td>
+                                        <td class="px-4 py-3 text-center">
+                                            ${tf.canSupport ? '<i class="fas fa-check text-green-600"></i>' : '<i class="fas fa-times text-red-600"></i>'}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            render() {
+                const html = `
+                    ${this.renderHeader()}
+                    <div class="max-w-7xl mx-auto px-6 py-8">
+                        ${this.renderInputSection()}
+                        ${this.renderResults()}
+                    </div>
+                `;
+
+                document.getElementById('app').innerHTML = html;
+            }
+        }
+
+        // Initialize app
+        const app = new App();
+        window.app = app;
+        app.render();
+
+        // Check API health
+        fetch(`${API_URL}/api/health`)
+            .then(res => res.json())
+            .then(data => console.log('✓ API connected:', data))
+            .catch(err => console.warn('⚠ API not available:', err));
+    </script>
+</body>
+</html>
