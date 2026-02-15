@@ -5,8 +5,8 @@ import os
 
 class DataLoader:
     
-    def __init__(self, filepath: str = "data"):
-        self.filepath = filepath
+    def __init__(self):
+        pass
 
     def load_ceb_data(self, ceb_file_path):
         if not os.path.exists(ceb_file_path):
@@ -14,8 +14,14 @@ class DataLoader:
         try:
             print("Loading CEB data...")
             ceb_data = pd.read_csv(ceb_file_path)
-            print(f"Loaded {len(ceb_data):,} records")
-            return ceb_data
+
+            print("Filtering solar records...")
+            solar_data = ceb_data[ceb_data["HAS_SOLAR"] == 1].copy()
+            solar_data = solar_data.drop(columns=["HAS_SOLAR"])
+
+            print(f"Loaded {len(solar_data):,} solar records")
+            return solar_data
+
         except FileNotFoundError as e:
             print(e)
 
@@ -31,23 +37,13 @@ class DataLoader:
             print(e)
 
     def fetch_weather_data(self, NASA_API:str, latitude:float, longitude:float,
-                           start_yr:int=2025, end_yr:int=2025, savePath:str="data/raw/" ):
-        print(f"Fetching NASA POWER weather data...")
+                           start_yr:int=2025, end_yr:int=2025, save:bool=True, savePath:str="data/raw/"
+                           , params:dict=None):
+        print(f"\nFetching NASA POWER weather data...")
         print(f"  Location: {latitude}°N, {longitude}°E")
         print(f"  Year: {start_yr}-{end_yr}")
 
-        PARAMS = {
-            'ALLSKY_SFC_SW_DWN': 'Solar_Irradiance_GHI',  # kWh/m²/day
-            'T2M': 'Temperature',  # °C
-            'T2M_MAX': 'Max_Temperature',  # °C
-            'T2M_MIN': 'Min_Temperature',  # °C
-            'RH2M': 'Humidity',  # %
-            'PRECTOTCORR': 'Precipitation',  # mm/day
-            'WS10M': 'Wind_Speed',  # m/s
-            'CLRSKY_SFC_SW_DWN': 'Clear_Sky_GHI'  # kWh/m²/day
-        }
-
-        params_str = ",".join(PARAMS.keys())
+        params_str = ",".join(params.keys())
         url = (
             f"{NASA_API}?"
             f"parameters={params_str}&"
@@ -64,11 +60,14 @@ class DataLoader:
             data_2025 = response.json()
 
             if data_2025:
-                print("Data received")
-                labeled_data =  self.labeling(data_2025, PARAMS)
-                path = os.path.join(savePath, "data_2025.csv")
-                labeled_data.to_csv(path, index=False)
-                return labeled_data
+                print("\nData received")
+                if save:
+                    labeled_data = self.labeling(data_2025, params)
+                    path = os.path.join(savePath, "data_2025.csv")
+                    labeled_data.to_csv(path, index=False)
+                    return labeled_data
+
+                return data_2025
             return None
 
         except Exception as e:
@@ -106,8 +105,7 @@ class DataLoader:
         print(f"Columns: {ceb_df.shape[1]}")
         return ceb_df.merge(weather_df, on='Month', how='left')
 
-    def save_data(self, df, filename):
-        print("Saving data...")
+    def save_data(self, df:pd.DataFrame, filename:str):
         filepath = f"data/processed/{filename}"
         df.to_csv(filepath, index=False)
         print(f"\nSaved: {filepath}")
