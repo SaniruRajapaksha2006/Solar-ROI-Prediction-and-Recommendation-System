@@ -2,6 +2,7 @@ import os.path
 from datetime import datetime
 from src.handle_missing import HandleMissing
 from src.data_load import DataLoader
+from src.outlier_detection import OutlierDetector
 
 def main():
     print("\n" + "=" * 80)
@@ -16,8 +17,9 @@ def main():
     CEB_FILE_PATH = "../processed/MASTER_DATASET_ALL_10TRANSFORMERS.csv"
     WEATHER_FILE = "data_2025.csv"
     NASA_API = "https://power.larc.nasa.gov/api/temporal/monthly/point"
-    MERGED_FILE = 'merged_data.csv'
-    MISSING_HANDLED_FILE = 'missing_val_handled_data.csv'
+    MERGED_FILE = '00_merged_data.csv'
+    MISSING_HANDLED_FILE = '01_imputed.csv'
+    OUTLIERS_REMOVED_FILE = "02_outliers_removed.csv"
 
     # Maharagama coordinates
     LATITUDE = 6.8514
@@ -100,6 +102,14 @@ def main():
     loader.save_data(df=handled_data, filename=MISSING_HANDLED_FILE)
 
     print("\nMissing values handling completed")
+
+    print("\n\nSTEP 3: OUTLIER DETECTION & REMOVAL")
+    print("=" * 40)
+
+    detector = OutlierDetector(threshold=1.5)
+
+    # 3.1 remove high export accounts
+    df_no_high_export = detector.remove_high_export_accounts(handled_data,700)
 
 if __name__ == "__main__":
     try:
