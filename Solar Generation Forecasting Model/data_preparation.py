@@ -111,6 +111,9 @@ def main():
     # 3.1 remove high export accounts
     df_no_high_export = detector.remove_high_export_accounts(handled_data,700)
 
+    # 3.2 remove outliers from
+    df_outliers_cleaned = detector.detect_monthly_outliers(df_no_high_export, 'EXPORT_kWh', 1.5)
+
 if __name__ == "__main__":
     try:
         main()

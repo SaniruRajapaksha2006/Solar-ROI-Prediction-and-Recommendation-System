@@ -36,3 +36,67 @@ class OutlierDetector:
         print(f"\n  Removed {removed:,} records from {len(high_export_accounts)} accounts")
         print("-" * 60)
         return df_clean
+
+    def detect_monthly_outliers(self, df, column='EXPORT_kWh', threshold=1.5):
+        print(f"\nDetecting outliers in {column} by MONTH...")
+        print("-" * 60)
+
+        df_result = df.copy()
+        df_result['is_outlier'] = False
+
+        total_outliers = 0
+
+        # Detect outliers per month
+        for month, group_df in df.groupby('Month'):
+            n = len(group_df)
+
+            # Calculate IQR bounds
+            Q1 = group_df[column].quantile(0.25)
+            Q3 = group_df[column].quantile(0.75)
+            IQR = Q3 - Q1
+
+            lower = Q1 - threshold * IQR
+            upper = Q3 + threshold * IQR
+
+            # Mark outliers
+            outlier_mask = (group_df[column] < lower) | (group_df[column] > upper)
+            df_result.loc[group_df.index[outlier_mask], 'is_outlier'] = True
+
+            outlier_count = outlier_mask.sum()
+            total_outliers += outlier_count
+
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+            if outlier_count > 0:
+                print(f"  {month_names[month - 1]}: {outlier_count}/{n} outliers "
+                      f"[{lower:.0f}, {upper:.0f}] kWh")
+            else:
+                print(f"  {month_names[month - 1]}: 0/{n} outliers")
+
+        print(f"\n  Total: {total_outliers} outliers ({total_outliers / len(df) * 100:.1f}%)")
+        print("-" * 60)
+
+        return self.remove_outliers(df_result)
+
+    def remove_outliers(self, df):
+        if 'is_outlier' not in df.columns:
+            raise ValueError("Run detect_monthly_outliers first!")
+
+        print("\nRemoving outliers...")
+        print("-" * 60)
+
+        initial = len(df)
+        cleaned = df[~df['is_outlier']].copy()
+        removed = initial - len(cleaned)
+
+        print(f"  Initial: {initial:,}")
+        print(f"  Removed: {removed:,} ({removed / initial * 100:.1f}%)")
+        print(f"  Final: {len(cleaned):,}")
+
+        # Drop flag column
+        cleaned = cleaned.drop(columns=['is_outlier'])
+
+        print("-" * 60)
+
+        return cleaned
