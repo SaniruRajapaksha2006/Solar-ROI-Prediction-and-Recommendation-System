@@ -17,7 +17,7 @@ class OutlierDetector:
         high_export_accounts = account_avg[account_avg > max_export].index.tolist()
 
         if not high_export_accounts:
-            print(f"  ✓ No accounts with avg export > {max_export} kWh")
+            print(f" No accounts with avg export > {max_export} kWh")
             return df
 
         self.removed_accounts = high_export_accounts

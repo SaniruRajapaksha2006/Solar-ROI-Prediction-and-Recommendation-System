@@ -3,6 +3,7 @@ from datetime import datetime
 from src.handle_missing import HandleMissing
 from src.data_load import DataLoader
 from src.outlier_detection import OutlierDetector
+from src.feature_selection import FeatureSelector
 
 def main():
     print("\n" + "=" * 80)
@@ -103,6 +104,8 @@ def main():
 
     print("\nMissing values handling completed")
 
+
+
     print("\n\nSTEP 3: OUTLIER DETECTION & REMOVAL")
     print("=" * 40)
 
@@ -113,6 +116,55 @@ def main():
 
     # 3.2 remove outliers from
     df_outliers_cleaned = detector.detect_monthly_outliers(df_no_high_export, 'EXPORT_kWh', 1.5)
+
+
+
+    non_informative_cols = [
+        # IDs - just identifiers, no predictive value
+        'TRANSFORMER_CODE',
+        'ACCOUNT_NO',
+
+        # Locations - derived weather data
+        'TRANSFORMER_LAT',
+        'TRANSFORMER_LON',
+        'CUSTOMER_LAT',
+        'CUSTOMER_LON',
+        'DISTANCE_FROM_TF_M',
+
+        # Metadata - only for analysis
+        'DATA_QUALITY',
+        'SOURCE',
+        'CAL_TARIFF',
+        'PHASE',
+
+        # only available one year data
+        'YEAR',
+
+        # Redundant
+        'HAS_SOLAR',  # All records are solar (filtered)
+
+        # Not target
+        'NET_CONSUMPTION_kWh',
+        'IMPORT_kWh',  # We only care about EXPORT
+
+        # =========================================================
+        # correlated with temperature
+        'Max_Temperature',
+        'Min_Temperature',
+        # correlated with solar irradiance
+        'Clear_Sky_GHI'
+    ]
+
+    selector = FeatureSelector()
+
+    # =========================================================
+    keep_cols = ['EXPORT_kWh', 'Month', 'INV_CAPACITY'] + list(PARAMS.values())
+
+    df_feature_cleaned = selector.select_features(df=df_outliers_cleaned,
+                                                  target='EXPORT_kWh',
+                                                  correlation_threshold=0.05,
+                                                  non_informative_cols=non_informative_cols,
+                                                  keep_cols=keep_cols)
 
 if __name__ == "__main__":
     try:
