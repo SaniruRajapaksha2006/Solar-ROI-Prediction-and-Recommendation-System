@@ -4,6 +4,7 @@ from src.handle_missing import HandleMissing
 from src.data_load import DataLoader
 from src.outlier_detection import OutlierDetector
 from src.feature_selection import FeatureSelector
+from src.feature_engineering import FeatureEngineer
 
 def main():
     print("\n" + "=" * 80)
@@ -118,6 +119,15 @@ def main():
     df_outliers_cleaned = detector.detect_monthly_outliers(df_no_high_export, 'EXPORT_kWh', 1.5)
 
 
+    featureEngineer = FeatureEngineer()
+
+    df_with_new_features = featureEngineer.create_all_features(df_outliers_cleaned)
+
+    new_features = featureEngineer.get_feature_list()
+
+    print(df_with_new_features.columns)
+
+
 
     non_informative_cols = [
         # IDs - just identifiers, no predictive value
@@ -145,7 +155,7 @@ def main():
 
         # Not target
         'NET_CONSUMPTION_kWh',
-        'IMPORT_kWh',  # We only care about EXPORT
+        'IMPORT_kWh',  # only care about EXPORT
 
         # =========================================================
         # correlated with temperature
@@ -158,9 +168,9 @@ def main():
     selector = FeatureSelector()
 
     # =========================================================
-    keep_cols = ['EXPORT_kWh', 'Month', 'INV_CAPACITY'] + list(PARAMS.values())
+    keep_cols = ['EXPORT_kWh', 'Month', 'INV_CAPACITY'] + list(PARAMS.values()) + new_features
 
-    df_feature_cleaned = selector.select_features(df=df_outliers_cleaned,
+    df_feature_cleaned = selector.select_features(df=df_with_new_features,
                                                   target='EXPORT_kWh',
                                                   correlation_threshold=0.05,
                                                   non_informative_cols=non_informative_cols,
