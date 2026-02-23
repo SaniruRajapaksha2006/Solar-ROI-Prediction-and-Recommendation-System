@@ -1,19 +1,22 @@
-import pandas as pd
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import requests
-import os
+
 
 class DataLoader:
     
     def __init__(self):
         pass
 
-    def load_ceb_data(self, ceb_file_path):
-        if not os.path.exists(ceb_file_path):
-            raise FileNotFoundError(f"File not found: {ceb_file_path}")
+    def load_ceb_data(self, ceb_file_path: str | Path):
+        path = Path(ceb_file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"File not found: {path}")
         try:
             print("Loading CEB data...")
-            ceb_data = pd.read_csv(ceb_file_path)
+            ceb_data = pd.read_csv(path)
 
             print("Filtering solar records...")
             solar_data = ceb_data[ceb_data["HAS_SOLAR"] == 1].copy()
@@ -25,19 +28,20 @@ class DataLoader:
         except FileNotFoundError as e:
             print(e)
 
-    def load_local_weather_data(self, weather_path: str= "data/raw/data_2025.csv"):
-        if not os.path.exists(weather_path):
-            raise FileNotFoundError(f"Weather file not found: {weather_path}")
+    def load_local_weather_data(self, weather_path: str | Path = "data/raw/data_2025.csv"):
+        path = Path(weather_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Weather file not found: {path}")
         try:
-            print(f"Loading weather data: {weather_path}")
-            df = pd.read_csv(weather_path)
+            print(f"Loading weather data: {path}")
+            df = pd.read_csv(path)
             print(f"Loaded {len(df)} months")
             return df
         except FileNotFoundError as e:
             print(e)
 
     def fetch_weather_data(self, NASA_API:str, latitude:float, longitude:float,
-                           start_yr:int=2025, end_yr:int=2025, save:bool=True, savePath:str="data/raw/"
+                           start_yr:int=2025, end_yr:int=2025, save:bool=True, savePath:str|Path="data/raw/"
                            , params:dict=None):
         print(f"\nFetching NASA POWER weather data...")
         print(f"  Location: {latitude}°N, {longitude}°E")
@@ -63,7 +67,9 @@ class DataLoader:
                 print("\nData received")
                 if save:
                     labeled_data = self.labeling(data_2025, params)
-                    path = os.path.join(savePath, "data_2025.csv")
+                    save_dir = Path(savePath)
+                    path = save_dir / "data_2025.csv"
+                    path.parent.mkdir(parents=True, exist_ok=True)
                     labeled_data.to_csv(path, index=False)
                     return labeled_data
 
@@ -105,7 +111,9 @@ class DataLoader:
         print(f"Columns: {ceb_df.shape[1]}")
         return ceb_df.merge(weather_df, on='Month', how='left')
 
-    def save_data(self, df:pd.DataFrame, filename:str):
-        filepath = f"data/processed/{filename}"
-        df.to_csv(filepath, index=False)
-        print(f"\nSaved: {filepath}")
+    def save_data(self, df: pd.DataFrame, filepath: str | Path):
+        """Save DataFrame to CSV. Pass full path for IDE/terminal consistency."""
+        path = Path(filepath)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(path, index=False)
+        print(f"\nSaved: {path}")

@@ -1,5 +1,3 @@
-import os.path
-
 import numpy as np
 import pandas as pd
 from src.data_load import DataLoader

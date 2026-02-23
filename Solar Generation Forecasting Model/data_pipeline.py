@@ -1,10 +1,17 @@
-import os.path
 from datetime import datetime
-from src.handle_missing import HandleMissing
+from pathlib import Path
+
 from src.data_load import DataLoader
-from src.outlier_detection import OutlierDetector
-from src.feature_selection import FeatureSelector
 from src.feature_engineering import FeatureEngineer
+from src.feature_selection import FeatureSelector
+from src.handle_missing import HandleMissing
+from src.outlier_detection import OutlierDetector
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+DATA_DIR = SCRIPT_DIR / "data"
+RAW_DATA_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = SCRIPT_DIR / "data" / "processed"
 
 def main():
     print("\n" + "=" * 80)
@@ -15,13 +22,13 @@ def main():
 
     loader = DataLoader()
 
-    DATA_DIR="data/raw"
-    CEB_FILE_PATH = "../processed/MASTER_DATASET_ALL_10TRANSFORMERS.csv"
+    CEB_FILE_PATH = PROJECT_ROOT / "processed" / "MASTER_DATASET_ALL_10TRANSFORMERS.csv"
     WEATHER_FILE = "data_2025.csv"
     NASA_API = "https://power.larc.nasa.gov/api/temporal/monthly/point"
     MERGED_FILE = '00_merged_data.csv'
     MISSING_HANDLED_FILE = '01_imputed.csv'
     OUTLIERS_REMOVED_FILE = "02_outliers_removed.csv"
+    FEATURE_ENGINEERING_FILE = "04_features_engineered.csv"
 
     # Maharagama coordinates
     LATITUDE = 6.8514
@@ -48,9 +55,9 @@ def main():
     print("\n1.1 Loading Weather Data")
     print("-" * 40)
 
-    WEATHER_FILE_PATH = f"{DATA_DIR}/{WEATHER_FILE}"
+    WEATHER_FILE_PATH = RAW_DATA_DIR / WEATHER_FILE
 
-    if os.path.exists(WEATHER_FILE_PATH):
+    if WEATHER_FILE_PATH.exists():
         weather_data = loader.load_local_weather_data(weather_path=WEATHER_FILE_PATH)
     else:
         print("Local dataset not found")
@@ -60,7 +67,7 @@ def main():
                                                  start_yr=2025,
                                                  end_yr=2025,
                                                  save=True,
-                                                 savePath=DATA_DIR,
+                                                 savePath=RAW_DATA_DIR,
                                                  params=PARAMS
                                                  )
 
@@ -68,7 +75,7 @@ def main():
     print("-" * 40)
     merged_data = loader.merge_ceb_weather(ceb_df=ceb_data, weather_df=weather_data)
 
-    loader.save_data(df=merged_data, filename=MERGED_FILE)
+    loader.save_data(df=merged_data, filepath=PROCESSED_DIR / MERGED_FILE)
 
     print("\nData Loading completed")
 
@@ -101,7 +108,7 @@ def main():
     print("-" * 40)
     handler.analysis_missing(dataframe=handled_data)
 
-    loader.save_data(df=handled_data, filename=MISSING_HANDLED_FILE)
+    loader.save_data(df=handled_data, filepath=PROCESSED_DIR / MISSING_HANDLED_FILE)
 
     print("\nMissing values handling completed")
 
@@ -175,6 +182,8 @@ def main():
                                                   correlation_threshold=0.05,
                                                   non_informative_cols=non_informative_cols,
                                                   keep_cols=keep_cols)
+
+    loader.save_data(df=df_feature_cleaned,filepath=PROCESSED_DIR / FEATURE_ENGINEERING_FILE)
 
 if __name__ == "__main__":
     try:
