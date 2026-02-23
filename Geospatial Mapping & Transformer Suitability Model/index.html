@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <style>
         .gradient-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -29,49 +31,98 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .feature-badge {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-right: 8px;
-            margin-bottom: 8px;
-        }
         .metric-box {
             background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
             border-left: 4px solid #667eea;
             padding: 16px;
             border-radius: 8px;
         }
+        #resultsMap {
+            height: 500px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        .transformer-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid #667eea;
+        }
+        .transformer-card:hover {
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+        }
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 18px;
+            color: white;
+        }
+        .input-group {
+            position: relative;
+        }
+        .input-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #667eea;
+            font-size: 14px;
+        }
+        .input-with-icon {
+            padding-left: 36px !important;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
     <div id="app"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script>
         const API_URL = 'http://localhost:5000';
 
         class SolarAssessmentApp {
             constructor() {
                 this.state = {
-                    currentPage: 'home', // home, assessment, results, analytics
-                    location: '6.848917321,79.92456012',
+                    currentPage: 'home',
+                    userLocation: null,
+                    latitude: 6.9271,
+                    longitude: 80.7789,
                     solarCapacity: 5.0,
                     searchRadius: 500,
                     loading: false,
                     results: null,
-                    analytics: null,
-                    featureImportance: null,
-                    clustering: null,
                     selectedTransformer: null,
-                    activeTab: 'overview',
-                    error: null
+                    error: null,
+                    map: null,
+                    transformerMarkers: {}
                 };
-                this.charts = {};
             }
 
             setState(updates) {
@@ -79,27 +130,11 @@
                 this.render();
             }
 
-            async fetchAnalytics() {
-                try {
-                    const [importance, clustering] = await Promise.all([
-                        fetch(`${API_URL}/api/feature-importance`).then(r => r.json()),
-                        fetch(`${API_URL}/api/clustering`).then(r => r.json())
-                    ]);
-
-                    this.setState({
-                        featureImportance: importance,
-                        clustering: clustering
-                    });
-                } catch (error) {
-                    console.error('Error fetching analytics:', error);
-                }
-            }
-
             async handleAssess() {
-                const { location, solarCapacity, searchRadius } = this.state;
+                const { latitude, longitude, solarCapacity, searchRadius } = this.state;
 
-                if (!location.trim()) {
-                    this.setState({ error: 'Please enter a location' });
+                if (!latitude || !longitude) {
+                    this.setState({ error: 'Please enter latitude and longitude coordinates' });
                     return;
                 }
 
@@ -109,7 +144,12 @@
                     const response = await fetch(`${API_URL}/api/assess`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ location, solarCapacity, searchRadius })
+                        body: JSON.stringify({
+                            latitude,
+                            longitude,
+                            solarCapacity,
+                            searchRadius
+                        })
                     });
 
                     if (!response.ok) {
@@ -121,12 +161,10 @@
                     this.setState({
                         results: data,
                         currentPage: 'results',
-                        activeTab: 'overview',
                         loading: false
                     });
 
-                    // Fetch analytics
-                    await this.fetchAnalytics();
+                    setTimeout(() => this.initializeResultsMap(), 100);
                 } catch (error) {
                     this.setState({
                         error: `Error: ${error.message}`,
@@ -135,7 +173,67 @@
                 }
             }
 
-            getSuitabilityColor(score) {
+            initializeResultsMap() {
+                if (this.state.map) {
+                    this.state.map.remove();
+                }
+
+                const { results } = this.state;
+                const { latitude, longitude } = this.state;
+                const map = L.map('resultsMap').setView([latitude, longitude], 13);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(map);
+
+                L.circleMarker([latitude, longitude], {
+                    radius: 10,
+                    fillColor: '#f5576c',
+                    color: 'white',
+                    weight: 3,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map)
+                .bindPopup('<strong>Your Location</strong>')
+                .openPopup();
+
+                results.transformers.forEach((tf) => {
+                    const color = this.getScoreColor(tf.score);
+                    const marker = L.circleMarker([tf.latitude, tf.longitude], {
+                        radius: 8,
+                        fillColor: color,
+                        color: 'white',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.7
+                    }).addTo(map)
+                    .bindPopup(`
+                        <div style="font-size: 12px;">
+                            <strong>${tf.code}</strong><br/>
+                            Score: ${tf.score.toFixed(1)}/100<br/>
+                            Distance: ${tf.distance.toFixed(0)}m<br/>
+                            Utilization: ${tf.utilizationAfter.toFixed(1)}%<br/>
+                            Status: ${tf.canSupport ? '✓ Supported' : '✗ Not Supported'}
+                        </div>
+                    `);
+
+                    marker.on('click', () => {
+                        this.setState({ selectedTransformer: tf });
+                    });
+
+                    this.state.transformerMarkers[tf.code] = marker;
+                });
+
+                const group = new L.featureGroup(Object.values(this.state.transformerMarkers));
+                if (Object.keys(this.state.transformerMarkers).length > 0) {
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+
+                this.setState({ map });
+            }
+
+            getScoreColor(score) {
                 if (score >= 80) return '#10b981';
                 if (score >= 50) return '#f59e0b';
                 return '#ef4444';
@@ -156,100 +254,109 @@
                         </div>
                     </div>
 
-                    <div class="max-w-7xl mx-auto px-6 py-12">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-                            <div class="bg-white rounded-xl shadow-lg p-8 card-glow">
-                                <h2 class="text-2xl font-bold text-gray-800 mb-6">🎯 Assessment</h2>
-                                <div class="space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                            <i class="fas fa-map-pin mr-2"></i>Location (Lat, Lon)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value="${this.state.location}"
-                                            onchange="window.app.setState({location: this.value})"
-                                            placeholder="6.849, 79.925"
-                                            class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-600 focus:outline-none"
-                                        />
-                                    </div>
+                    <div class="max-w-2xl mx-auto px-6 py-16">
+                        <div class="bg-white rounded-xl shadow-lg p-8 card-glow">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-2">
+                                <i class="fas fa-sliders-h mr-2 text-indigo-500"></i>Assessment Parameters
+                            </h2>
+                            <p class="text-sm text-gray-500 mb-8">Enter your location coordinates and solar setup details to find the best transformer connection.</p>
 
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                            <i class="fas fa-bolt mr-2"></i>Solar Capacity (kW)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value="${this.state.solarCapacity}"
-                                            onchange="window.app.setState({solarCapacity: parseFloat(this.value)})"
-                                            step="0.5" min="1" max="50"
-                                            class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-600 focus:outline-none"
-                                        />
-                                    </div>
+                            <div class="space-y-5">
 
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                            <i class="fas fa-circle-notch mr-2"></i>Search Radius (m)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value="${this.state.searchRadius}"
-                                            onchange="window.app.setState({searchRadius: parseFloat(this.value)})"
-                                            step="100" min="100" max="2000"
-                                            class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-600 focus:outline-none"
-                                        />
-                                    </div>
-
-                                    ${this.state.error ? `
-                                        <div class="bg-red-100 border-l-4 border-red-600 text-red-800 p-3">
-                                            <i class="fas fa-exclamation-circle mr-2"></i>${this.state.error}
+                                <!-- Location Section -->
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-3">Location Coordinates</p>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                                Latitude
+                                            </label>
+                                            <div class="input-group">
+                                                <i class="fas fa-map-pin input-icon"></i>
+                                                <input
+                                                    type="number"
+                                                    value="${this.state.latitude}"
+                                                    onchange="window.app.setState({latitude: parseFloat(this.value)})"
+                                                    step="0.0001"
+                                                    placeholder="e.g. 6.9271"
+                                                    class="input-with-icon w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition text-sm"
+                                                />
+                                            </div>
                                         </div>
-                                    ` : ''}
-
-                                    <button
-                                        onclick="window.app.handleAssess()"
-                                        ${this.state.loading ? 'disabled' : ''}
-                                        class="w-full gradient-accent text-white py-3 rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50"
-                                    >
-                                        ${this.state.loading ? '<div class="flex items-center justify-center gap-2"><div class="loader"></div>Assessing...</div>' : 'Run Assessment'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="space-y-4">
-                                <div class="bg-white rounded-xl shadow-lg p-6 card-glow">
-                                    <h3 class="font-bold text-lg mb-4">✨ AI Features</h3>
-                                    <div class="space-y-2 text-sm">
-                                        <div class="flex items-start gap-2">
-                                            <i class="fas fa-brain text-blue-600 mt-1"></i>
-                                            <span><strong>ML Prediction:</strong> Random Forest-based suitability scoring</span>
-                                        </div>
-                                        <div class="flex items-start gap-2">
-                                            <i class="fas fa-circle-nodes text-green-600 mt-1"></i>
-                                            <span><strong>Clustering:</strong> Automatic transformer grouping</span>
-                                        </div>
-                                        <div class="flex items-start gap-2">
-                                            <i class="fas fa-chart-line text-purple-600 mt-1"></i>
-                                            <span><strong>Load Forecast:</strong> 12-month future predictions</span>
-                                        </div>
-                                        <div class="flex items-start gap-2">
-                                            <i class="fas fa-lightbulb text-yellow-600 mt-1"></i>
-                                            <span><strong>Explainability:</strong> Feature importance analysis</span>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                                Longitude
+                                            </label>
+                                            <div class="input-group">
+                                                <i class="fas fa-map-pin input-icon"></i>
+                                                <input
+                                                    type="number"
+                                                    value="${this.state.longitude}"
+                                                    onchange="window.app.setState({longitude: parseFloat(this.value)})"
+                                                    step="0.0001"
+                                                    placeholder="e.g. 80.7789"
+                                                    class="input-with-icon w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition text-sm"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="bg-white rounded-xl shadow-lg p-6 card-glow">
-                                    <h3 class="font-bold text-lg mb-4">📊 System Components</h3>
-                                    <div class="space-y-2 text-xs">
-                                        <div><span class="feature-badge">Geospatial</span></div>
-                                        <div><span class="feature-badge">Capacity Analysis</span></div>
-                                        <div><span class="feature-badge">Rule-Based Scoring</span></div>
-                                        <div><span class="feature-badge">ML Prediction</span></div>
-                                        <div><span class="feature-badge">Load Forecasting</span></div>
-                                        <div><span class="feature-badge">XAI Explainability</span></div>
+                                <hr class="border-gray-100"/>
+
+                                <!-- Solar & Search Section -->
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-3">Solar & Search Settings</p>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                                Solar Capacity (kW)
+                                            </label>
+                                            <div class="input-group">
+                                                <i class="fas fa-bolt input-icon"></i>
+                                                <input
+                                                    type="number"
+                                                    value="${this.state.solarCapacity}"
+                                                    onchange="window.app.setState({solarCapacity: parseFloat(this.value)})"
+                                                    step="0.5" min="1" max="50"
+                                                    class="input-with-icon w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition text-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                                Search Radius (m)
+                                            </label>
+                                            <div class="input-group">
+                                                <i class="fas fa-circle-notch input-icon"></i>
+                                                <input
+                                                    type="number"
+                                                    value="${this.state.searchRadius}"
+                                                    onchange="window.app.setState({searchRadius: parseFloat(this.value)})"
+                                                    step="100" min="100" max="2000"
+                                                    class="input-with-icon w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition text-sm"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
+
+                                ${this.state.error ? `
+                                    <div class="bg-red-50 border-l-4 border-red-500 text-red-800 p-3 text-sm rounded">
+                                        <i class="fas fa-exclamation-circle mr-2"></i>${this.state.error}
+                                    </div>
+                                ` : ''}
+
+                                <button
+                                    onclick="window.app.handleAssess()"
+                                    ${this.state.loading ? 'disabled' : ''}
+                                    class="w-full gradient-accent text-white py-4 rounded-lg font-bold text-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                                >
+                                    ${this.state.loading
+                                        ? '<div class="flex items-center justify-center gap-3"><div class="loader" style="width:24px;height:24px;border-width:3px;"></div>Assessing...</div>'
+                                        : '<i class="fas fa-search mr-2"></i>Run Assessment'
+                                    }
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -259,13 +366,12 @@
             renderResults() {
                 if (!this.state.results) return '';
 
-                const { results, activeTab } = this.state;
-                const { transformers } = results;
+                const { results, selectedTransformer } = this.state;
 
                 return `
                     <div class="gradient-header text-white shadow-lg">
                         <div class="max-w-7xl mx-auto px-6 py-8">
-                            <button onclick="window.app.setState({currentPage: 'home'})" class="mb-4 text-blue-100 hover:text-white">
+                            <button onclick="window.app.setState({currentPage: 'home', map: null, transformerMarkers: {}})" class="mb-4 text-blue-100 hover:text-white transition">
                                 <i class="fas fa-arrow-left mr-2"></i>Back to Home
                             </button>
                             <h1 class="text-4xl font-bold">Assessment Results</h1>
@@ -273,236 +379,166 @@
                     </div>
 
                     <div class="max-w-7xl mx-auto px-6 py-8">
-                        <!-- Summary -->
-                        <div class="bg-white rounded-xl shadow-lg p-8 card-glow mb-8">
-                            <h2 class="text-2xl font-bold text-gray-800 mb-6">📊 Summary</h2>
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div class="metric-box">
-                                    <p class="text-sm text-gray-600 mb-1">Location</p>
-                                    <p class="font-bold text-gray-800">${results.userLocation}</p>
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+                            <div class="stat-card">
+                                <div class="stat-value">${results.transformersFound}</div>
+                                <div class="stat-label">Transformers Found</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${results.solarForecast}</div>
+                                <div class="stat-label">Solar Capacity (kW)</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${results.searchRadius}</div>
+                                <div class="stat-label">Search Radius (m)</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" style="background: linear-gradient(135deg, #10b981, #059669); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                                    ${results.transformers[0].score.toFixed(1)}
                                 </div>
-                                <div class="metric-box">
-                                    <p class="text-sm text-gray-600 mb-1">Solar Capacity</p>
-                                    <p class="font-bold text-gray-800">${results.solarForecast} kW</p>
+                                <div class="stat-label">Top Score</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">
+                                    ${results.transformers.filter(t => t.canSupport).length}/${results.transformersFound}
                                 </div>
-                                <div class="metric-box">
-                                    <p class="text-sm text-gray-600 mb-1">Transformers Found</p>
-                                    <p class="font-bold text-gray-800">${transformers.length}</p>
-                                </div>
-                                <div class="metric-box">
-                                    <p class="text-sm text-gray-600 mb-1">Top Score</p>
-                                    <p class="font-bold text-gray-800" style="color: ${this.getSuitabilityColor(transformers[0].score)}">${transformers[0].score.toFixed(1)}/100</p>
-                                </div>
+                                <div class="stat-label">Supported</div>
                             </div>
                         </div>
 
-                        <!-- Tabs -->
-                        <div class="bg-white rounded-xl shadow-lg overflow-hidden card-glow">
-                            <div class="flex border-b border-gray-200 flex-wrap">
-                                ${['overview', 'ml-scores', 'clustering', 'forecast', 'explainability'].map(tab => `
-                                    <button
-                                        onclick="window.app.setState({activeTab: '${tab}'})"
-                                        class="px-6 py-4 font-semibold transition ${
-                                            activeTab === tab
-                                                ? 'gradient-accent text-white'
-                                                : 'text-gray-700 hover:bg-gray-50'
-                                        }"
+                        <div class="bg-white rounded-xl shadow-lg p-6 card-glow mb-8">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                                <i class="fas fa-map-marked-alt mr-2"></i>Transformer Locations
+                            </h2>
+                            <div id="resultsMap"></div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div class="lg:col-span-2 space-y-4">
+                                <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                                    <i class="fas fa-list mr-2"></i>Transformer Rankings
+                                </h2>
+                                ${results.transformers.map((tf) => `
+                                    <div
+                                        class="transformer-card ${this.getSuitabilityBg(tf.score)}"
+                                        onclick="window.app.setState({selectedTransformer: ${JSON.stringify(tf).replace(/"/g, '&quot;')}})"
                                     >
-                                        ${tab === 'overview' ? '🎯 Overview' :
-                                          tab === 'ml-scores' ? '🤖 ML Scores' :
-                                          tab === 'clustering' ? '⭐ Clustering' :
-                                          tab === 'forecast' ? '📈 Forecast' :
-                                          tab === 'explainability' ? '💡 XAI' : tab}
-                                    </button>
+                                        <div class="flex items-start justify-between gap-4">
+                                            <div class="flex-1">
+                                                <div class="flex items-center gap-3 mb-2">
+                                                    <span class="text-xl font-bold text-gray-600">#${tf.rank}</span>
+                                                    <h3 class="text-lg font-bold text-gray-800">${tf.code}</h3>
+                                                    <span class="text-xs bg-white px-2 py-1 rounded-full text-gray-600">
+                                                        ${tf.distance.toFixed(0)}m away
+                                                    </span>
+                                                </div>
+                                                <p class="text-sm text-gray-600 mb-3">${tf.cluster}</p>
+                                                <div class="grid grid-cols-3 gap-2 text-xs">
+                                                    <div>
+                                                        <span class="text-gray-600">Capacity</span>
+                                                        <p class="font-bold">${tf.capacity}kW</p>
+                                                    </div>
+                                                    <div>
+                                                        <span class="text-gray-600">Load</span>
+                                                        <p class="font-bold">${tf.currentLoad.toFixed(1)}kW</p>
+                                                    </div>
+                                                    <div>
+                                                        <span class="text-gray-600">After</span>
+                                                        <p class="font-bold" style="color: ${tf.utilizationAfter > 85 ? '#ef4444' : '#10b981'}">
+                                                            ${tf.utilizationAfter.toFixed(1)}%
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex flex-col items-center gap-2">
+                                                <div class="score-badge" style="background: ${this.getScoreColor(tf.score)}">
+                                                    ${tf.score.toFixed(0)}
+                                                </div>
+                                                <span class="text-xs font-semibold text-center" style="color: ${this.getScoreColor(tf.score)}">
+                                                    ${tf.score >= 80 ? 'IDEAL' : tf.score >= 50 ? 'GOOD' : 'FAIR'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 `).join('')}
                             </div>
 
-                            <div class="p-8">
-                                ${activeTab === 'overview' ? this.renderOverviewTab(transformers) : ''}
-                                ${activeTab === 'ml-scores' ? this.renderMLScoresTab(transformers) : ''}
-                                ${activeTab === 'clustering' ? this.renderClusteringTab() : ''}
-                                ${activeTab === 'forecast' ? this.renderForecastTab(transformers) : ''}
-                                ${activeTab === 'explainability' ? this.renderExplainabilityTab() : ''}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
+                            <div class="lg:col-span-1">
+                                <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                                    <i class="fas fa-info-circle mr-2"></i>Details
+                                </h2>
+                                ${selectedTransformer ? `
+                                    <div class="bg-white rounded-xl shadow-lg p-6 card-glow space-y-4">
+                                        <h3 class="text-xl font-bold text-gray-800">${selectedTransformer.code}</h3>
 
-            renderOverviewTab(transformers) {
-                return transformers.map((tf, idx) => `
-                    <div class="border-2 rounded-lg p-6 transition mb-6 ${this.getSuitabilityBg(tf.score)}">
-                        <div class="flex justify-between items-start mb-4">
-                            <div>
-                                <h3 class="text-xl font-bold text-gray-800">#${tf.rank} - ${tf.code}</h3>
-                                <p class="text-gray-600"><i class="fas fa-map-marker-alt mr-2"></i>${tf.distance.toFixed(1)}m away</p>
-                                <p class="text-gray-600 text-sm"><i class="fas fa-tag mr-2"></i>Cluster: ${tf.cluster}</p>
-                            </div>
-                            <div class="text-center">
-                                <div class="inline-block bg-white rounded-full p-4 shadow">
-                                    <p class="text-3xl font-bold" style="color: ${this.getSuitabilityColor(tf.score)}">${tf.score.toFixed(1)}</p>
-                                    <p class="text-xs text-gray-600">Final Score</p>
-                                </div>
-                            </div>
-                        </div>
+                                        <div class="metric-box">
+                                            <p class="text-sm text-gray-600 mb-1">Overall Score</p>
+                                            <p class="text-2xl font-bold" style="color: ${this.getScoreColor(selectedTransformer.score)}">
+                                                ${selectedTransformer.score.toFixed(1)}/100
+                                            </p>
+                                        </div>
 
-                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-sm">
-                            <div class="bg-white p-3 rounded">
-                                <p class="text-gray-600 text-xs">Capacity</p>
-                                <p class="font-bold">${tf.capacity} kW</p>
-                            </div>
-                            <div class="bg-white p-3 rounded">
-                                <p class="text-gray-600 text-xs">Load</p>
-                                <p class="font-bold">${tf.currentLoad.toFixed(1)} kW</p>
-                            </div>
-                            <div class="bg-white p-3 rounded">
-                                <p class="text-gray-600 text-xs">Before</p>
-                                <p class="font-bold">${tf.utilizationBefore.toFixed(1)}%</p>
-                            </div>
-                            <div class="bg-white p-3 rounded">
-                                <p class="text-gray-600 text-xs">After</p>
-                                <p class="font-bold" style="color: ${tf.utilizationAfter > 85 ? '#ef4444' : '#10b981'}">${tf.utilizationAfter.toFixed(1)}%</p>
-                            </div>
-                            <div class="bg-white p-3 rounded">
-                                <p class="text-gray-600 text-xs">Future (12m)</p>
-                                <p class="font-bold">${tf.futureLoad12m.toFixed(1)} kW</p>
-                            </div>
-                        </div>
+                                        <div class="metric-box">
+                                            <p class="text-sm text-gray-600 mb-1">Distance</p>
+                                            <p class="text-xl font-bold">${selectedTransformer.distance.toFixed(0)}m</p>
+                                        </div>
 
-                        <div class="flex flex-wrap gap-2 mb-4">
-                            ${tf.canSupport ? `<span class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-semibold"><i class="fas fa-check-circle mr-1"></i>Supported</span>` : ''}
-                            ${tf.curtailmentRisk ? `<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-semibold"><i class="fas fa-warning mr-1"></i>Risk</span>` : ''}
-                        </div>
+                                        <div class="metric-box">
+                                            <p class="text-sm text-gray-600 mb-1">Utilization Before</p>
+                                            <p class="text-xl font-bold">${selectedTransformer.utilizationBefore.toFixed(1)}%</p>
+                                        </div>
 
-                        <p class="text-sm font-semibold text-gray-700 p-3 bg-white rounded border-l-4" style="border-color: ${this.getSuitabilityColor(tf.score)}">
-                            ${tf.recommendation}
-                        </p>
-                    </div>
-                `).join('');
-            }
+                                        <div class="metric-box">
+                                            <p class="text-sm text-gray-600 mb-1">Utilization After</p>
+                                            <p class="text-xl font-bold" style="color: ${selectedTransformer.utilizationAfter > 85 ? '#ef4444' : '#10b981'}">
+                                                ${selectedTransformer.utilizationAfter.toFixed(1)}%
+                                            </p>
+                                        </div>
 
-            renderMLScoresTab(transformers) {
-                return `
-                    <div class="space-y-6">
-                        <p class="text-gray-600"><i class="fas fa-info-circle mr-2"></i>Blended score combines Rule-Based (50%) + ML Prediction (50%)</p>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-sm">
-                                <thead>
-                                    <tr class="bg-gray-100 border-b-2">
-                                        <th class="px-4 py-3 text-left font-bold">Transformer</th>
-                                        <th class="px-4 py-3 text-center font-bold">Rule-Based</th>
-                                        <th class="px-4 py-3 text-center font-bold">ML Score</th>
-                                        <th class="px-4 py-3 text-center font-bold">Blended</th>
-                                        <th class="px-4 py-3 text-center font-bold">Confidence</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${transformers.map(tf => `
-                                        <tr class="border-b hover:bg-gray-50">
-                                            <td class="px-4 py-3 font-bold">${tf.code}</td>
-                                            <td class="px-4 py-3 text-center">
-                                                <span style="color: ${this.getSuitabilityColor(tf.ruleBasedScore)}" class="font-bold">${tf.ruleBasedScore.toFixed(1)}</span>
-                                            </td>
-                                            <td class="px-4 py-3 text-center">
-                                                <span style="color: ${this.getSuitabilityColor(tf.mlScore)}" class="font-bold">${tf.mlScore.toFixed(1)}</span>
-                                            </td>
-                                            <td class="px-4 py-3 text-center">
-                                                <span style="color: ${this.getSuitabilityColor(tf.score)}" class="font-bold">${tf.score.toFixed(1)}</span>
-                                            </td>
-                                            <td class="px-4 py-3 text-center">
-                                                <div class="w-16 h-2 bg-gray-300 rounded-full mx-auto">
-                                                    <div class="h-2 rounded-full" style="width: ${tf.mlScore}%; background-color: ${this.getSuitabilityColor(tf.mlScore)}"></div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                `;
-            }
+                                        <div class="metric-box">
+                                            <p class="text-sm text-gray-600 mb-1">Future Load (12m)</p>
+                                            <p class="text-xl font-bold">${selectedTransformer.futureLoad12m.toFixed(2)}kW</p>
+                                        </div>
 
-            renderClusteringTab() {
-                if (!this.state.clustering) return '<p>Loading clustering analysis...</p>';
+                                        <div class="metric-box">
+                                            <p class="text-sm text-gray-600 mb-1">Support Status</p>
+                                            <p class="text-lg font-bold">
+                                                ${selectedTransformer.canSupport ?
+                                                    '<span style="color: #10b981">✓ Supported</span>' :
+                                                    '<span style="color: #ef4444">✗ Not Supported</span>'
+                                                }
+                                            </p>
+                                        </div>
 
-                const clustering = this.state.clustering;
-                return `
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        ${Object.entries(clustering).map(([clusterName, data]) => `
-                            <div class="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-lg p-6">
-                                <h3 class="font-bold text-lg mb-4">⭐ ${clusterName}</h3>
-                                <div class="space-y-3 text-sm">
-                                    <div class="flex justify-between">
-                                        <span>Count:</span>
-                                        <span class="font-bold">${data.count}</span>
+                                        ${selectedTransformer.curtailmentRisk ? `
+                                            <div class="bg-red-50 border border-red-200 p-3 rounded text-red-800 text-sm">
+                                                <i class="fas fa-warning mr-2"></i>Curtailment Risk
+                                            </div>
+                                        ` : ''}
+
+                                        <div class="bg-gray-50 border border-gray-200 p-3 rounded text-sm">
+                                            <p class="font-semibold text-gray-800 mb-1">Recommendation</p>
+                                            <p class="text-gray-700">${selectedTransformer.recommendation}</p>
+                                        </div>
+
+                                        <div class="grid grid-cols-2 gap-2 text-xs">
+                                            <div class="bg-blue-50 p-2 rounded">
+                                                <span class="text-gray-600">Rule Score</span>
+                                                <p class="font-bold text-blue-600">${selectedTransformer.ruleBasedScore.toFixed(1)}</p>
+                                            </div>
+                                            <div class="bg-purple-50 p-2 rounded">
+                                                <span class="text-gray-600">ML Score</span>
+                                                <p class="font-bold text-purple-600">${selectedTransformer.mlScore.toFixed(1)}</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="flex justify-between">
-                                        <span>Avg Utilization:</span>
-                                        <span class="font-bold">${data.avgUtilization.toFixed(1)}%</span>
+                                ` : `
+                                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
+                                        <i class="fas fa-mouse-pointer text-3xl text-gray-400 mb-2"></i>
+                                        <p class="text-gray-600">Click on a transformer to view details</p>
                                     </div>
-                                    <div class="flex justify-between">
-                                        <span>Solar Penetration:</span>
-                                        <span class="font-bold">${data.avgSolarPenetration.toFixed(1)}%</span>
-                                    </div>
-                                </div>
+                                `}
                             </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
-
-            renderForecastTab(transformers) {
-                return `
-                    <p class="text-gray-600 mb-6"><i class="fas fa-chart-line mr-2"></i>12-month load forecast showing growth trajectory</p>
-                    <div class="space-y-6">
-                        ${transformers.slice(0, 3).map((tf, idx) => `
-                            <div class="border rounded-lg p-4">
-                                <h4 class="font-bold mb-3">${tf.code} - Current Load: ${tf.currentLoad.toFixed(2)} kW → Future: ${tf.futureLoad12m.toFixed(2)} kW</h4>
-                                <div class="w-full bg-gray-200 rounded-full h-3">
-                                    <div class="bg-gradient-accent h-3 rounded-full" style="width: ${Math.min((tf.futureLoad12m / tf.capacity) * 100, 100)}%"></div>
-                                </div>
-                                <p class="text-sm text-gray-600 mt-2">Growth: ${((tf.futureLoad12m / tf.currentLoad - 1) * 100).toFixed(1)}%</p>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
-
-            renderExplainabilityTab() {
-                if (!this.state.featureImportance) return '<p>Loading feature importance...</p>';
-
-                const importance = this.state.featureImportance.features;
-                const topFeatures = Object.entries(importance).slice(0, 6);
-
-                return `
-                    <div class="space-y-6">
-                        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                            <p class="text-sm text-gray-700">
-                                <i class="fas fa-lightbulb mr-2"></i>
-                                <strong>Feature Importance Analysis:</strong> Shows which factors most influence suitability predictions
-                            </p>
-                        </div>
-
-                        <div class="space-y-3">
-                            ${topFeatures.map(([feature, importance]) => `
-                                <div>
-                                    <div class="flex justify-between mb-1">
-                                        <span class="font-semibold text-gray-800">${feature}</span>
-                                        <span class="text-blue-600 font-bold">${(importance * 100).toFixed(1)}%</span>
-                                    </div>
-                                    <div class="w-full bg-gray-200 rounded-full h-3">
-                                        <div class="gradient-accent h-3 rounded-full" style="width: ${importance * 100}%"></div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-
-                        <div class="bg-purple-50 p-4 rounded-lg border border-purple-200 mt-6">
-                            <h4 class="font-bold mb-2">🎯 Interpretation</h4>
-                            <p class="text-sm text-gray-700">
-                                The model uses multiple features to determine suitability. Higher importance indicates stronger influence on final recommendations. This transparency helps validate and understand AI decisions.
-                            </p>
                         </div>
                     </div>
                 `;
@@ -510,21 +546,14 @@
 
             render() {
                 const { currentPage } = this.state;
-
-                const html = `
-                    ${currentPage === 'home' ? this.renderHome() : this.renderResults()}
-                `;
-
-                document.getElementById('app').innerHTML = html;
+                document.getElementById('app').innerHTML = currentPage === 'home' ? this.renderHome() : this.renderResults();
             }
         }
 
-        // Initialize app
         const app = new SolarAssessmentApp();
         window.app = app;
         app.render();
 
-        // Check API health
         fetch(`${API_URL}/api/health`)
             .then(res => res.json())
             .then(data => console.log('✓ API connected:', data))
