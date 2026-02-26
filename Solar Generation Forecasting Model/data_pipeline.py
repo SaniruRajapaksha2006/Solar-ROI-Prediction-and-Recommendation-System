@@ -119,11 +119,8 @@ def main():
 
     detector = OutlierDetector(threshold=1.5)
 
-    # 3.1 remove high export accounts
-    df_no_high_export = detector.remove_high_export_accounts(handled_data,700)
-
-    # 3.2 remove outliers from
-    df_outliers_cleaned = detector.detect_monthly_outliers(df_no_high_export, 'EXPORT_kWh', 1.5)
+    # remove outliers from
+    df_outliers_cleaned = detector.detect_monthly_outliers(handled_data, 'EXPORT_kWh', 1.5)
 
 
     featureEngineer = FeatureEngineer()
@@ -132,14 +129,11 @@ def main():
 
     new_features = featureEngineer.get_feature_list()
 
-    print(df_with_new_features.columns)
-
 
 
     non_informative_cols = [
-        # IDs - just identifiers, no predictive value
+        # kept CUSTOMER_ID for train-test split
         'TRANSFORMER_CODE',
-        'ACCOUNT_NO',
 
         # Locations - derived weather data
         'TRANSFORMER_LAT',

@@ -1,251 +1,458 @@
 """
-Pipeline:
-1. Isolate: Separate target from features
-2. Split: Train/Test partition
-3. Scale: Normalize features
-4. Fit: Train the model
-5. Evaluate: Test performance
-6. Save: Export artifacts (.pkl files)
-"""
+src/model_trainer.py
 
+Solar Forecasting Model Trainer with Household-Based Splitting
+
+Pipeline:
+1. Isolation & Split: Separate by ACCOUNT (households)
+2. Base Model Comparison: Ridge, SVR, RandomForest
+3. Hyperparameter Tuning: Optimize ALL models
+4. Save: Export best pipeline artifact
+
+Uses GroupShuffleSplit to ensure accounts stay together.
+"""
 from pathlib import Path
 
-import joblib
-import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import train_test_split
+import numpy as np
+from sklearn.model_selection import GroupShuffleSplit, GridSearchCV
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.linear_model import Ridge, Lasso
+from sklearn.svm import SVR
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import joblib
+import os
 
 
-class ModelTrainer:
+class SolarTrainer:
+    """
+    Solar forecasting trainer with account-based splitting
     
-    def __init__(self, processed_data_path: str | Path, model_type='RandomForest'):
+    Key Design:
+    - GroupShuffleSplit: Keeps all months of same account together
+    - Pipeline: Ensures scaling only uses train data
+    - Hyperparameter tuning: Optimizes for small dataset
+    """
+    
+    def __init__(self, df, group_col='ACCOUNT_NO', target='EXPORT_kWh'):
+        """
+        Initialize trainer
+        
+        Args:
+            df: Processed DataFrame
+            group_col: Column for grouping (default: ACCOUNT_NO)
+            target: Target column (default: EXPORT_kWh)
+        """
         print("\n" + "="*70)
-        print("MODEL TRAINING PIPELINE")
+        print("SOLAR MODEL TRAINER")
         print("="*70)
-
-        # Load data
-        path = Path(processed_data_path)
-        print(f"\nLoading data: {path}")
-        self.df = pd.read_csv(path)
-        print(f"Loaded: {self.df.shape[0]:,} records, {self.df.shape[1]} columns")
         
-        self.scaler = StandardScaler()
+        self.df = df
+        self.group_col = group_col
+        self.target = target
         
-        self.model_type = model_type
-        self.model = self._get_model(model_type)
-        print(f"Model: {model_type}")
-        
-        self.X_train = None
-        self.X_test = None
-        self.y_train = None
-        self.y_test = None
-        self.X_train_scaled = None
-        self.X_test_scaled = None
-        self.predictions = None
+        print(f"\nDataset: {len(df):,} records")
+        print(f"Accounts: {df[group_col].nunique()}")
+        print(f"Target: {target}")
     
-    def _get_model(self, model_type):
-        """Get model instance based on type"""
+    def get_splits(self, test_size=0.2, exclude_cols=None):
+        """
+        Split data by household (account)
+        
+        Ensures all months of Account #123 stay in same set
+        
+        Args:
+            test_size: Fraction for test set (default 0.2)
+            exclude_cols: Columns to exclude from features
+            
+        Returns:
+            X_train, X_test, y_train, y_test
+        """
+        print("\n" + "-"*70)
+        print("STEP 1: ISOLATION & HOUSEHOLD SPLIT")
+        print("-"*70)
+        
+        # Default exclusions
+        if exclude_cols is None:
+            exclude_cols = ['YEAR']
+        
+        # 1. ISOLATION
+        drop_cols = [self.target, self.group_col] + [
+            col for col in exclude_cols if col in self.df.columns
+        ]
+        
+        X = self.df.drop(columns=drop_cols)
+        y = self.df[self.target]
+        groups = self.df[self.group_col]
+        
+        print(f"Features: {X.shape[1]} columns")
+        print(f"Target: {self.target}")
+        print(f"Groups: {self.group_col} ({groups.nunique()} unique accounts)")
+        
+        # 2. HOUSEHOLD SPLIT (GroupShuffleSplit)
+        gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=42)
+        train_idx, test_idx = next(gss.split(X, y, groups=groups))
+        
+        X_train = X.iloc[train_idx]
+        X_test = X.iloc[test_idx]
+        y_train = y.iloc[train_idx]
+        y_test = y.iloc[test_idx]
+        
+        # Verify no account overlap
+        train_accounts = set(groups.iloc[train_idx].unique())
+        test_accounts = set(groups.iloc[test_idx].unique())
+        overlap = train_accounts.intersection(test_accounts)
+        
+        if overlap:
+            raise ValueError(f"Data leakage! {len(overlap)} accounts in both sets")
+        
+        print(f"\nTrain: {len(X_train):,} records, {len(train_accounts)} accounts")
+        print(f"Test: {len(X_test):,} records, {len(test_accounts)} accounts")
+        print(f"✓ No account overlap (household split verified)")
+        
+        return X_train, X_test, y_train, y_test
+    
+    def compare_base_models(self, X_train, X_test, y_train, y_test):
+        """
+        Compare base models (no tuning yet)
+        
+        Pipeline ensures scaling only uses train statistics
+        
+        Args:
+            X_train, X_test, y_train, y_test: Split data
+            
+        Returns:
+            DataFrame with model comparison
+        """
+        print("\n" + "-"*70)
+        print("STEP 2: BASE MODEL COMPARISON")
+        print("-"*70)
+        
+        # Define models (conservative params for small dataset)
         models = {
-            'RandomForest': RandomForestRegressor(
-                n_estimators=100,
-                max_depth=10,
+            "Ridge": Ridge(alpha=1.0),
+            "Lasso": Lasso(alpha=0.1),
+            "SVR": SVR(kernel='rbf', C=10),
+            "RandomForest": RandomForestRegressor(
+                n_estimators=50,
+                max_depth=8,
                 min_samples_split=5,
-                random_state=42,
-                n_jobs=-1
+                random_state=42
             ),
-            'GradientBoosting': None,
-            'Ridge': None
+            "GradientBoosting": GradientBoostingRegressor(
+                n_estimators=50,
+                max_depth=4,
+                learning_rate=0.1,
+                random_state=42
+            )
         }
         
-        if model_type not in models:
-            raise ValueError(f"Unknown model type: {model_type}")
+        results = []
         
-        return models[model_type]
-    
-    def execute_pipeline(self, test_size=0.2):
-        # ====================================================================
-        # STEP 1: ISOLATION (Separate Target from Features)
-        # ====================================================================
-
-        print("\n" + "-" * 70)
-        print("STEP 1: ISOLATION")
-        print("-" * 70)
-
-        X = self.df.drop(columns=['EXPORT_kWh'])
-        y = self.df['EXPORT_kWh']
-
-        print(f"Features (X): {X.shape[1]} columns isolated")
-        print(f"Target (y):   EXPORT_kWh isolated")
-        print(f"Feature List: {list(X.columns)}")
+        for name, model in models.items():
+            print(f"\nTraining {name}...")
+            
+            pipe = Pipeline([
+                ('scaler', StandardScaler()),
+                ('regressor', model)
+            ])
+            
+            # Fit
+            pipe.fit(X_train, y_train)
+            
+            # Predict
+            preds = pipe.predict(X_test)
+            
+            # Metrics
+            mae = mean_absolute_error(y_test, preds)
+            rmse = np.sqrt(mean_squared_error(y_test, preds))
+            r2 = r2_score(y_test, preds)
+            mape = np.mean(np.abs((y_test - preds) / y_test)) * 100
+            
+            results.append({
+                'Model': name,
+                'MAE': mae,
+                'RMSE': rmse,
+                'R2': r2,
+                'MAPE': mape
+            })
+            
+            print(f"  MAE: {mae:.2f} kWh")
+            print(f"  R²: {r2:.4f}")
         
-        # ====================================================================
-        # STEP 2: SPLIT (Partition into Train/Test)
-        # ====================================================================
+        results_df = pd.DataFrame(results).sort_values('MAE')
         
         print("\n" + "-"*70)
-        print("STEP 2: SPLIT")
+        print("MODEL COMPARISON RESULTS")
+        print("-"*70)
+        print(results_df.to_string(index=False))
+        
+        return results_df
+    
+    def hyperparameter_tune_all(self, X_train, y_train):
+        """
+        Tune hyperparameters for ALL models
+        
+        Conservative tuning for small dataset (~3000 records)
+        
+        Args:
+            X_train: Training features
+            y_train: Training target
+            
+        Returns:
+            Dictionary with best pipeline for each model
+        """
+        print("\n" + "-"*70)
+        print("STEP 3: HYPERPARAMETER TUNING (ALL MODELS)")
         print("-"*70)
         
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            X, y, 
-            test_size=test_size, 
-            random_state=42
+        tuned_models = {}
+        
+        # ====================================================================
+        # Ridge Regression
+        # ====================================================================
+        print("\n1. Tuning Ridge...")
+        
+        ridge_pipe = Pipeline([
+            ('scaler', StandardScaler()),
+            ('ridge', Ridge())
+        ])
+        
+        ridge_params = {
+            'ridge__alpha': [0.1, 1.0, 10.0, 100.0]
+        }
+        
+        ridge_grid = GridSearchCV(
+            ridge_pipe, ridge_params,
+            cv=3,  # 3-fold (conservative for small data)
+            scoring='neg_mean_absolute_error',
+            n_jobs=-1
         )
-        
-        print(f"Training set: {len(self.X_train):,} records ({(1-test_size)*100:.0f}%)")
-        print(f"Test set: {len(self.X_test):,} records ({test_size*100:.0f}%)")
-        print(f"Split ratio: {1-test_size:.0%} train / {test_size:.0%} test")
-        
-        # ====================================================================
-        # STEP 3: SCALE (Normalize Features - Train Only!)
-        # ====================================================================
-        
-        print("\n" + "-"*70)
-        print("STEP 3: SCALE")
-        print("-"*70)
-        
-        print("Fitting scaler on TRAINING data only...")
-        self.X_train_scaled = self.scaler.fit_transform(self.X_train)
-        
-        print("Transforming TEST data using TRAINING statistics...")
-        self.X_test_scaled = self.scaler.transform(self.X_test)
-        
-        print("Scaling complete (no data leakage)")
-        print(f"  Mean before scaling: {self.X_train.mean().mean():.2f}")
-        print(f"  Mean after scaling: {self.X_train_scaled.mean():.2f}")
+        ridge_grid.fit(X_train, y_train)
+        tuned_models['Ridge'] = ridge_grid.best_estimator_
+        print(f"  Best params: {ridge_grid.best_params_}")
+        print(f"  Best MAE: {-ridge_grid.best_score_:.2f}")
         
         # ====================================================================
-        # STEP 4: FIT (Train the Model)
+        # Lasso Regression
         # ====================================================================
+        print("\n2. Tuning Lasso...")
         
-        print("\n" + "-"*70)
-        print("STEP 4: FIT")
-        print("-"*70)
+        lasso_pipe = Pipeline([
+            ('scaler', StandardScaler()),
+            ('lasso', Lasso())
+        ])
         
-        print(f"Training {self.model_type}...")
-        self.model.fit(self.X_train_scaled, self.y_train)
-        
-        print(f"{self.model_type} trained on {len(self.X_train):,} records")
-        
-        # ====================================================================
-        # STEP 5: PREDICT & EVALUATE
-        # ====================================================================
-        
-        print("\n" + "-"*70)
-        print("STEP 5: EVALUATE")
-        print("-"*70)
-        
-        # Predict on test set
-        self.predictions = self.model.predict(self.X_test_scaled)
-        
-        # Calculate metrics
-        mae = mean_absolute_error(self.y_test, self.predictions)
-        rmse = np.sqrt(mean_squared_error(self.y_test, self.predictions))
-        r2 = r2_score(self.y_test, self.predictions)
-        mape = np.mean(np.abs((self.y_test - self.predictions) / self.y_test)) * 100
-        
-        print(f"Model Performance on Test Set:")
-        print(f"  MAE (Mean Absolute Error): {mae:.2f} kWh")
-        print(f"  RMSE (Root Mean Squared Error): {rmse:.2f} kWh")
-        print(f"  R² (Coefficient of Determination): {r2:.4f}")
-        print(f"  MAPE (Mean Absolute Percentage Error): {mape:.2f}%")
-        
-        # Interpretation
-        print(f"\nInterpretation:")
-        if mae < 50:
-            print(f"  Excellent! Predictions within {mae:.0f} kWh on average")
-        elif mae < 100:
-            print(f"  Good! Predictions within {mae:.0f} kWh on average")
-        else:
-            print(f" Model could be improved (error = {mae:.0f} kWh)")
-        
-        if r2 > 0.8:
-            print(f"  Excellent fit! Model explains {r2*100:.1f}% of variance")
-        elif r2 > 0.6:
-            print(f"  Good fit! Model explains {r2*100:.1f}% of variance")
-        else:
-            print(f" Moderate fit. Model explains {r2*100:.1f}% of variance")
-        
-        # ====================================================================
-        # STEP 6: SAVE ARTIFACTS
-        # ====================================================================
-        
-        print("\n" + "-"*70)
-        print("STEP 6: SAVE ARTIFACTS")
-        print("-"*70)
-
-        models_dir = Path(__file__).resolve().parent / "models"
-        models_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save scaler
-        scaler_path = models_dir / "scaler.pkl"
-        joblib.dump(self.scaler, scaler_path)
-        print(f"Saved: {scaler_path}")
-
-        # Save model
-        model_path = models_dir / "solar_model.pkl"
-        joblib.dump(self.model, model_path)
-        print(f"Saved: {model_path}")
-
-        feature_path = models_dir / "feature_names.pkl"
-        joblib.dump(list(X.columns), feature_path)
-        print(f"Saved: {feature_path}")
-        
-        print("\nAll artifacts saved successfully")
-        print("  Deploy these 3 files together:")
-        print("    • scaler.pkl (normalization)")
-        print("    • solar_model.pkl (predictions)")
-        print("    • feature_names.pkl (column order)")
-        
-        print("\n" + "="*70)
-        print("TRAINING COMPLETE")
-        print("="*70 + "\n")
-        
-        # Return metrics
-        return {
-            'MAE': mae,
-            'RMSE': rmse,
-            'R2': r2,
-            'MAPE': mape,
-            'train_size': len(self.X_train),
-            'test_size': len(self.X_test)
+        lasso_params = {
+            'lasso__alpha': [0.01, 0.1, 1.0, 10.0]
         }
+        
+        lasso_grid = GridSearchCV(
+            lasso_pipe, lasso_params,
+            cv=3,
+            scoring='neg_mean_absolute_error',
+            n_jobs=-1
+        )
+        lasso_grid.fit(X_train, y_train)
+        tuned_models['Lasso'] = lasso_grid.best_estimator_
+        print(f"  Best params: {lasso_grid.best_params_}")
+        print(f"  Best MAE: {-lasso_grid.best_score_:.2f}")
+        
+        # ====================================================================
+        # SVR
+        # ====================================================================
+        print("\n3. Tuning SVR...")
+        
+        svr_pipe = Pipeline([
+            ('scaler', StandardScaler()),
+            ('svr', SVR())
+        ])
+        
+        svr_params = {
+            'svr__C': [1, 10, 100],
+            'svr__epsilon': [0.01, 0.1, 0.5],
+            'svr__kernel': ['rbf']
+        }
+        
+        svr_grid = GridSearchCV(
+            svr_pipe, svr_params,
+            cv=3,
+            scoring='neg_mean_absolute_error',
+            n_jobs=-1
+        )
+        svr_grid.fit(X_train, y_train)
+        tuned_models['SVR'] = svr_grid.best_estimator_
+        print(f"  Best params: {svr_grid.best_params_}")
+        print(f"  Best MAE: {-svr_grid.best_score_:.2f}")
+        
+        # ====================================================================
+        # Random Forest (Conservative for small dataset)
+        # ====================================================================
+        print("\n4. Tuning RandomForest...")
+        
+        rf_pipe = Pipeline([
+            ('scaler', StandardScaler()),
+            ('rf', RandomForestRegressor(random_state=42))
+        ])
+        
+        rf_params = {
+            'rf__n_estimators': [50, 100],        # Limited range
+            'rf__max_depth': [6, 8, 10],          # Not too deep
+            'rf__min_samples_split': [5, 10],     # Prevent overfitting
+            'rf__min_samples_leaf': [2, 4]        # Conservative
+        }
+        
+        rf_grid = GridSearchCV(
+            rf_pipe, rf_params,
+            cv=3,
+            scoring='neg_mean_absolute_error',
+            n_jobs=-1
+        )
+        rf_grid.fit(X_train, y_train)
+        tuned_models['RandomForest'] = rf_grid.best_estimator_
+        print(f"  Best params: {rf_grid.best_params_}")
+        print(f"  Best MAE: {-rf_grid.best_score_:.2f}")
+        
+        # ====================================================================
+        # Gradient Boosting (Conservative)
+        # ====================================================================
+        print("\n5. Tuning GradientBoosting...")
+        
+        gb_pipe = Pipeline([
+            ('scaler', StandardScaler()),
+            ('gb', GradientBoostingRegressor(random_state=42))
+        ])
+        
+        gb_params = {
+            'gb__n_estimators': [50, 100],
+            'gb__max_depth': [3, 4, 5],
+            'gb__learning_rate': [0.05, 0.1, 0.2],
+            'gb__min_samples_split': [5, 10]
+        }
+        
+        gb_grid = GridSearchCV(
+            gb_pipe, gb_params,
+            cv=3,
+            scoring='neg_mean_absolute_error',
+            n_jobs=-1
+        )
+        gb_grid.fit(X_train, y_train)
+        tuned_models['GradientBoosting'] = gb_grid.best_estimator_
+        print(f"  Best params: {gb_grid.best_params_}")
+        print(f"  Best MAE: {-gb_grid.best_score_:.2f}")
+        
+        print("\n✓ All models tuned")
+        
+        return tuned_models
     
-    def get_feature_importance(self, top_n=10):
-        if not hasattr(self.model, 'feature_importances_'):
-            print(f"{self.model_type} does not support feature importance")
-            return None
+    def evaluate_tuned_models(self, tuned_models, X_test, y_test):
+        """
+        Evaluate all tuned models on test set
         
-        feature_names = self.X_train.columns
-        importance = pd.DataFrame({
-            'Feature': feature_names,
-            'Importance': self.model.feature_importances_
-        }).sort_values('Importance', ascending=False)
-        
-        print(f"\nTop {top_n} Most Important Features:")
+        Args:
+            tuned_models: Dictionary of tuned pipelines
+            X_test: Test features
+            y_test: Test target
+            
+        Returns:
+            DataFrame with final comparison
+        """
+        print("\n" + "-"*70)
+        print("STEP 4: FINAL EVALUATION (TUNED MODELS)")
         print("-"*70)
-        print(importance.head(top_n).to_string(index=False))
         
-        return importance
+        results = []
+        
+        for name, pipeline in tuned_models.items():
+            preds = pipeline.predict(X_test)
+            
+            mae = mean_absolute_error(y_test, preds)
+            rmse = np.sqrt(mean_squared_error(y_test, preds))
+            r2 = r2_score(y_test, preds)
+            mape = np.mean(np.abs((y_test - preds) / y_test)) * 100
+            
+            results.append({
+                'Model': name,
+                'MAE': mae,
+                'RMSE': rmse,
+                'R2': r2,
+                'MAPE': mape
+            })
+        
+        results_df = pd.DataFrame(results).sort_values('MAE')
+        
+        print("\nFINAL TUNED MODEL COMPARISON:")
+        print(results_df.to_string(index=False))
+        
+        # Highlight best
+        best = results_df.iloc[0]
+        print(f"\n🏆 BEST MODEL: {best['Model']}")
+        print(f"   MAE: {best['MAE']:.2f} kWh")
+        print(f"   R²: {best['R2']:.4f}")
+        
+        return results_df
+    
+    def save_best_model(self, tuned_models, model_name, save_dir='models'):
+        """
+        Save best model pipeline
+        
+        Args:
+            tuned_models: Dictionary of tuned models
+            model_name: Name of best model
+            save_dir: Directory to save
+        """
+        print("\n" + "-"*70)
+        print("STEP 5: SAVE BEST MODEL")
+        print("-"*70)
+        
+        os.makedirs(save_dir, exist_ok=True)
+        
+        best_pipeline = tuned_models[model_name]
+        
+        # Save complete pipeline (scaler + model together)
+        model_path = os.path.join(save_dir, 'best_solar_pipeline.pkl')
+        joblib.dump(best_pipeline, model_path)
+        
+        print(f"✓ Saved: {model_path}")
+        print(f"  Model: {model_name}")
+        print(f"  Contains: StandardScaler + Trained Model")
+        print(f"\n  For inference:")
+        print(f"    pipeline = joblib.load('{model_path}')")
+        print(f"    predictions = pipeline.predict(new_data)")
 
 
 if __name__ == "__main__":
+    # Load data
     SCRIPT_DIR = Path(__file__).resolve().parent
     DATA_PATH = SCRIPT_DIR / "data" / "processed" / "04_features_engineered.csv"
-
-    trainer = ModelTrainer(
-        processed_data_path=DATA_PATH,
-        model_type='RandomForest'
+    df = pd.read_csv(DATA_PATH)
+    
+    print(f"Loaded: {len(df):,} records")
+    
+    # Initialize trainer
+    trainer = SolarTrainer(df, group_col='ACCOUNT_NO', target='EXPORT_kWh')
+    
+    # 1. Split by household
+    X_train, X_test, y_train, y_test = trainer.get_splits(
+        test_size=0.2,
+        exclude_cols=['YEAR']
     )
     
-    metrics = trainer.execute_pipeline(test_size=0.2)
+    # 2. Compare base models
+    base_results = trainer.compare_base_models(X_train, X_test, y_train, y_test)
     
-    # Show feature importance
-    importance = trainer.get_feature_importance(top_n=10)
+    # 3. Tune all models
+    tuned_models = trainer.hyperparameter_tune_all(X_train, y_train)
     
-    print("\nTraining pipeline complete")
-    print(f"  MAE: {metrics['MAE']:.2f} kWh")
-    print(f"  R²: {metrics['R2']:.4f}")
+    # 4. Evaluate tuned models
+    final_results = trainer.evaluate_tuned_models(tuned_models, X_test, y_test)
+    
+    # 5. Save best model
+    best_model_name = final_results.iloc[0]['Model']
+    trainer.save_best_model(tuned_models, best_model_name)
+    
+    print("\n" + "="*70)
+    print("TRAINING COMPLETE ✓")
+    print("="*70)
