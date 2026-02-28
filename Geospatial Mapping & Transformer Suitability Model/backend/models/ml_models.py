@@ -53,7 +53,12 @@ class SolarSuitabilityMLModel:
         """Return probability of class=1 (suitable) for each row."""
         if not self.is_trained:
             return np.full(len(X), 0.5)
-        return self.model.predict_proba(X[self.FEATURE_COLUMNS])[:, 1]
+        proba = self.model.predict_proba(X[self.FEATURE_COLUMNS])
+        # If only one class in training data, proba has 1 column — handle safely
+        if proba.shape[1] == 1:
+            only_class = int(self.model.classes_[0])
+            return np.full(len(X), float(only_class))
+        return proba[:, 1]
 
     def feature_importance(self) -> dict:
         if not self.is_trained:

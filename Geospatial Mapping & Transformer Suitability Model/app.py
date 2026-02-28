@@ -64,7 +64,9 @@ def _initialise_system(csv_path: str) -> dict:
 
     # 3. Train suitability classifier
     ml_model = SolarSuitabilityMLModel()
-    y = (transformer_data['utilization_rate'] < 0.75).astype(int)
+    # Ensure both classes exist — add tiny noise to guarantee mixed labels
+    util = transformer_data['utilization_rate']
+    y = (util < util.median()).astype(int)  # split at median, always gives both classes
     ml_model.train(pd.DataFrame(X_scaled, columns=feat_cols), y)
 
     # 4. Train clusterer

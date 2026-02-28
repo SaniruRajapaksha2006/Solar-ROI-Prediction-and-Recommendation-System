@@ -14,15 +14,22 @@ from __future__ import annotations
 import traceback
 from datetime import datetime
 
+# Standard libraries
 import numpy as np
 import pandas as pd
+
+# Flask
 from flask import Blueprint, request, jsonify, current_app
 
+# Utils
 from backend.utils.geo_utils import filter_nearby_transformers
+
+# Models / Engines
 from backend.models.suitability_engine import (
     TransformerSuitabilityEngine,
     generate_recommendation,
 )
+
 from backend.models.ml_models import CLUSTER_PROFILE_NAMES
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
