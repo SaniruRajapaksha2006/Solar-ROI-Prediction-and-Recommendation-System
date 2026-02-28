@@ -71,6 +71,9 @@ class DataPreprocessor:
 
         # Standardize column names
         rename_map = {
+            'TRANSFORMER_LAT_first': 'TRANSFORMER_LAT',  # ADD THIS
+            'TRANSFORMER_LON_first': 'TRANSFORMER_LON',  # ADD THIS
+            'TRANSFORMER_CODE_': 'TRANSFORMER_CODE',  # ADD THIS (safety)
             'NET_CONSUMPTION_kWh_mean': 'avg_consumption',
             'NET_CONSUMPTION_kWh_std': 'consumption_std',
             'NET_CONSUMPTION_kWh_max': 'max_consumption',
