@@ -10,9 +10,7 @@ from geopy.geocoders import Nominatim
 warnings.filterwarnings('ignore')
 
 
-# ============================================================================
 # 1. COORDINATE EXTRACTION & GEOCODING
-# ============================================================================
 
 class CoordinateExtractor:
     """Extract user coordinates from address or return existing lat/lon"""
@@ -54,9 +52,7 @@ class CoordinateExtractor:
             return "Address not found"
 
 
-# ============================================================================
 # 2. TRANSFORMER MAPPING & DATA PROCESSING
-# ============================================================================
 
 class TransformerMapper:
     """Map and analyze transformer data"""
@@ -115,9 +111,7 @@ class TransformerMapper:
         return nearby.sort_values('DISTANCE_M')
 
 
-# ============================================================================
 # 3. TRANSFORMER HEADROOM & SUITABILITY CALCULATION
-# ============================================================================
 
 class TransformerSuitability:
     """Assess transformer suitability for solar connection"""
@@ -220,9 +214,7 @@ class TransformerSuitability:
         }
 
 
-# ============================================================================
 # 4. VISUALIZATION & REPORTING
-# ============================================================================
 
 class TransformerMapper_Visualizer:
     """Create maps and reports"""
@@ -294,9 +286,7 @@ class TransformerMapper_Visualizer:
         """Generate detailed text report"""
 
         report = f"""
-================================================================================
                 TRANSFORMER SUITABILITY ASSESSMENT REPORT
-================================================================================
 
 USER LOCATION
 {'-' * 80}
@@ -378,22 +368,22 @@ def assess_transformer_suitability(
         Dictionary with results
     """
 
-    print("🔍 STEP 1: Extracting user coordinates...")
+    print("STEP 1: Extracting user coordinates...")
     extractor = CoordinateExtractor()
     user_coords = extractor.get_coordinates(user_location)
     user_address = extractor.reverse_geocode(user_coords[0], user_coords[1])
     print(f"   ✓ User location: {user_address}")
     print(f"   ✓ Coordinates: {user_coords}")
 
-    print("\n📡 STEP 2: Loading transformer data...")
+    print("\nSTEP 2: Loading transformer data...")
     mapper = TransformerMapper(transformer_csv_path)
     print(f"   ✓ Loaded {len(mapper.transformers)} unique transformers")
 
-    print(f"\n🎯 STEP 3: Finding nearby transformers (within {search_radius_m}m)...")
+    print(f"\nSTEP 3: Finding nearby transformers (within {search_radius_m}m)...")
     nearby = mapper.find_nearby_transformers(user_coords[0], user_coords[1], search_radius_m)
     print(f"   ✓ Found {len(nearby)} nearby transformers")
 
-    print("\n⚡ STEP 4: Assessing suitability...")
+    print("\nSTEP 4: Assessing suitability...")
     suitability_assessor = TransformerSuitability(solar_forecast_kW)
     suitability_results = []
 
@@ -409,7 +399,7 @@ def assess_transformer_suitability(
     print(
         f"   ✓ Top transformer: {nearby_sorted.iloc[0]['TRANSFORMER_CODE']} (Score: {suitability_results_sorted[0]['overall_score']:.1f}/100)")
 
-    print("\n🗺️  STEP 5: Creating visualization...")
+    print("\nSTEP 5: Creating visualization...")
     visualizer = TransformerMapper_Visualizer()
     visualizer.create_map(
         user_coords[0],
@@ -418,9 +408,9 @@ def assess_transformer_suitability(
         suitability_results_sorted,
         output_map_file
     )
-    print(f"   ✓ Map saved to: {output_map_file}")
+    print(f"   Map saved to: {output_map_file}")
 
-    print("\n📋 STEP 6: Generating report...")
+    print("\nSTEP 6: Generating report...")
     report = visualizer.generate_report(
         user_address,
         user_coords,
@@ -440,17 +430,16 @@ def assess_transformer_suitability(
     }
 
 
-# ============================================================================
+
 # EXAMPLE USAGE
-# ============================================================================
 
 if __name__ == "__main__":
     # Example usage
     results = assess_transformer_suitability(
         user_location="6.848917321,79.92456012",  # Colombo, Sri Lanka
-        solar_forecast_kW=5.0,  # 5 kW rooftop solar system
+        solar_forecast_kW=1.0,  # 1 kW rooftop solar system
         transformer_csv_path=r"C:\Users\dewmi\OneDrive\Documents\IIT\2nd Year\DSGP\MASTER_DATASET_ALL_10TRANSFORMERS.csv",        search_radius_m=500,
-        output_map_file="transformer_suitability_map.html"
+        output_map_file="transformer_suitability_map01.html"
     )
 
     print("\n✅ Assessment complete!")
