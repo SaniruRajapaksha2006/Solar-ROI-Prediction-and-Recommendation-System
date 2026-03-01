@@ -120,9 +120,10 @@ class FeatureEngineer:
         print("-" * 60)
         
         df_feat = df.copy()
-        
-        # Expected generation (physics-based)
-        # Formula: GHI × Capacity × Performance_Ratio × Days
+
+        # Feature: Theoretical Yield (DC-to-AC conversion)
+        # This acts as a 'Physics-Informed' feature to guide the model's scale.
+        # It represents the ideal energy harvest considering standard system losses (PR=0.80).
         PERFORMANCE_RATIO = 0.80  # System losses (inverter, wiring, soiling)
         df_feat['Expected_Generation'] = (
             df_feat['Solar_Irradiance_GHI'] *
@@ -132,7 +133,19 @@ class FeatureEngineer:
         ).round(2)
         print(" Expected_Generation (physics formula)")
         self.created_features.append('Expected_Generation')
-        
+
+        # Benchmark: Specific Yield (Deterministic Baseline)
+        # Used as a Zero-Intelligence (ZI) baseline to validate ML performance gain.
+        # Calculated in kWh/kW to provide a direct performance ratio comparison
+        # against the model's predicted Efficiency target.
+        df_feat['Physics_Pred'] = (
+            df_feat['Solar_Irradiance_GHI'] *
+            PERFORMANCE_RATIO *
+            df_feat['Days_In_Month']
+        ).round(2)
+        print(" Physics_Pred (GHI × 0.80 × Days — naive baseline, kWh/kW)")
+        self.created_features.append('Physics_Pred')
+
         print("-" * 60)
         return df_feat
     

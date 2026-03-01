@@ -5,6 +5,41 @@ class OutlierDetector:
         self.outlier_bounds = {}
         self.removed_accounts = []
 
+    def filter_residential_capacity(self, df, max_kw=20):
+        """
+        Remove commercial / industrial accounts before model training.
+
+        Residential solar in Sri Lanka is almost always <= 20 kW.
+        Large inverters (50 kW, 100 kW) belong to factories or commercial
+        buildings — they distort the model and must be excluded.
+
+        Args:
+            df      : DataFrame containing 'INV_CAPACITY' column
+            max_kw  : Maximum allowed inverter capacity (default: 20 kW)
+
+        Returns:
+            Filtered DataFrame with only residential-scale systems
+        """
+        print(f"\nFiltering commercial accounts (INV_CAPACITY > {max_kw} kW)...")
+        print("-" * 60)
+
+        initial_len = len(df)
+        df_clean = df[df['INV_CAPACITY'] <= max_kw].copy()
+        removed = initial_len - len(df_clean)
+
+        if removed == 0:
+            print(f"  No commercial accounts found (all <= {max_kw} kW)")
+        else:
+            removed_accounts = df[df['INV_CAPACITY'] > max_kw]['ACCOUNT_NO'].unique()
+            print(f"  Removed {removed:,} records from {len(removed_accounts)} commercial account(s)")
+            for acc in removed_accounts:
+                cap = df[df['ACCOUNT_NO'] == acc]['INV_CAPACITY'].iloc[0]
+                print(f"    Account {acc}: {cap} kW")
+
+        print(f"\n  Remaining: {len(df_clean):,} residential records")
+        print("-" * 60)
+        return df_clean
+
 
     def remove_high_export_accounts(self, df, max_export=700):
         print(f"\nRemoving accounts with avg export > {max_export} kWh...")
