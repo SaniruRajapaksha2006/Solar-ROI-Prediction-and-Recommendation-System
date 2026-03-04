@@ -53,9 +53,7 @@ class SolarFinancialModel:
             annual_maintenance = base_maintenance * np.random.normal(1.0, 0.2)
             inverter_fail_year = np.random.randint(8, 13)
             inverter_cost = initial_investment_lkr * 0.25
-
-            # Risk: CEB Import Tariffs go up over time, Export Tariffs stay fixed
-            import_tariff_escalation = np.random.uniform(0.02, 0.05)
+            tariff_escalation = np.random.uniform(0.02, 0.05)
 
             # --- Cash Flow Projection (20 Years) ---
             cumulative_cash = -initial_investment_lkr
@@ -63,10 +61,10 @@ class SolarFinancialModel:
             paid_back = False
             total_net_profit = 0
 
-            # Export tariff stays constant for 20 years
-            current_export_tariff = self.EXPORT_TARIFF_LKR
+            # NEW: Start NPV with initial investment as a negative outflow
+            npv = -initial_investment_lkr
 
-            # Import tariff starts at base and escalates
+            current_export_tariff = self.EXPORT_TARIFF_LKR
             current_import_tariff = self.BASE_IMPORT_TARIFF_LKR
 
             for year in range(1, self.PROJECT_LIFETIME + 1):
@@ -93,42 +91,49 @@ class SolarFinancialModel:
                 cumulative_cash += net_flow
                 total_net_profit += net_flow
 
+                # NEW: Calculate Discounted Cash Flow and add to NPV
+                discounted_flow = net_flow / ((1 + self.DISCOUNT_RATE) ** year)
+                npv += discounted_flow
+
                 # Check Payback
                 if cumulative_cash >= 0 and not paid_back:
                     payback_year = year + (cumulative_cash - net_flow) / net_flow
                     paid_back = True
 
-                # FIX: Escalate CEB import tariff ONLY for next year
-                current_import_tariff *= (1 + import_tariff_escalation)
+                # Escalate CEB import tariff ONLY
+                current_import_tariff *= (1 + tariff_escalation)
 
             roi_percent = (total_net_profit / initial_investment_lkr) * 100
             sim_results.append({
                 "ROI": roi_percent,
-                "Payback": payback_year
+                "Payback": payback_year,
+                "NPV": npv  # NEW: Store NPV for each simulation
             })
 
         # 3. Aggregating Results
         df_sim = pd.DataFrame(sim_results)
         expected_roi = df_sim["ROI"].mean()
         expected_payback = df_sim["Payback"].median()
+        expected_npv = df_sim["NPV"].mean()  # NEW: Calculate mean NPV
         worst_case_roi = df_sim["ROI"].quantile(0.05)
 
-        # 4. Generate Recommendation
-        if expected_roi > 150:
-            rec = "Excellent Investment"
-        elif expected_roi > 50:
-            rec = "Good Investment"
+        # 4. Generate Recommendation (NEW: Base it on NPV, the industry standard)
+        if expected_npv > (initial_investment_lkr * 0.5):
+            rec = "Excellent Investment: Highly resilient to market risks."
+        elif expected_npv > 0:
+            rec = "Good Investment: Profitable over the system lifetime."
         else:
-            rec = "High Risk / Marginal Return"
+            rec = "High Risk / Marginal Return: Consider a different system size or tariff scheme."
 
         return {
             "System_Size_KW": system_size_kw,
             "Total_Investment_LKR": initial_investment_lkr,
+            "Expected_NPV_LKR": round(expected_npv, 2),  # NEW: Output to JSON
             "Expected_ROI_Percent": round(expected_roi, 2),
             "Payback_Period_Years": round(expected_payback, 1),
             "Risk_Analysis": {
                 "Worst_Case_ROI": round(worst_case_roi, 2),
-                "Certainty": "High" if expected_roi > 50 else "Moderate"
+                "Certainty": "High" if expected_npv > 0 else "Moderate"
             },
             "Recommendation": rec
         }
