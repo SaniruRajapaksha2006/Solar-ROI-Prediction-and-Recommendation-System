@@ -53,7 +53,9 @@ class SolarFinancialModel:
             annual_maintenance = base_maintenance * np.random.normal(1.0, 0.2)
             inverter_fail_year = np.random.randint(8, 13)
             inverter_cost = initial_investment_lkr * 0.25
-            tariff_escalation = np.random.uniform(0.02, 0.05)
+
+            # Risk: CEB Import Tariffs go up over time, Export Tariffs stay fixed
+            import_tariff_escalation = np.random.uniform(0.02, 0.05)
 
             # --- Cash Flow Projection (20 Years) ---
             cumulative_cash = -initial_investment_lkr
@@ -61,14 +63,16 @@ class SolarFinancialModel:
             paid_back = False
             total_net_profit = 0
 
-            # Temporarily keeping escalation on export for this step (will fix in next commit)
+            # Export tariff stays constant for 20 years
             current_export_tariff = self.EXPORT_TARIFF_LKR
+
+            # Import tariff starts at base and escalates
             current_import_tariff = self.BASE_IMPORT_TARIFF_LKR
 
             for year in range(1, self.PROJECT_LIFETIME + 1):
                 gen_for_year = predicted_annual_generation_kwh * ((1 - degradation_rate) ** (year - 1))
 
-                # NEW: Net Accounting Logic
+                # Net Accounting Logic
                 if gen_for_year >= predicted_annual_consumption_kwh:
                     savings = predicted_annual_consumption_kwh * current_import_tariff
                     excess_exported = gen_for_year - predicted_annual_consumption_kwh
@@ -94,9 +98,8 @@ class SolarFinancialModel:
                     payback_year = year + (cumulative_cash - net_flow) / net_flow
                     paid_back = True
 
-                # Update Tariffs for next year (Will fix export flat-rate bug in Commit 2)
-                current_export_tariff *= (1 + tariff_escalation)
-                current_import_tariff *= (1 + tariff_escalation)
+                # FIX: Escalate CEB import tariff ONLY for next year
+                current_import_tariff *= (1 + import_tariff_escalation)
 
             roi_percent = (total_net_profit / initial_investment_lkr) * 100
             sim_results.append({
