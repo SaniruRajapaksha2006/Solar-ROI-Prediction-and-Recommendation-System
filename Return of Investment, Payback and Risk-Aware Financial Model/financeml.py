@@ -20,9 +20,7 @@ class SolarFinancialModel:
         # =========================================================================
         # 2. POLICY & TARIFF DATA (Source: PUCSL / CEB Revisions)
         # =========================================================================
-        self.EXPORT_TARIFF_LKR = 27.06
-
-        # NEW: Average blended import tariff (what the user saves by generating their own power)
+        # Average blended import tariff (what the user saves by generating their own power)
         self.BASE_IMPORT_TARIFF_LKR = 45.00
 
         self.PROJECT_LIFETIME = 20  # Years
@@ -34,7 +32,14 @@ class SolarFinancialModel:
         else:
             return size_kw * 200000
 
-    # NEW: Added predicted_annual_consumption_kwh parameter
+    # NEW: Dynamic export tariff based on system size (Mid-2025 CEB Update)
+    def get_export_tariff(self, size_kw):
+        """Returns the fixed export tariff based on system size"""
+        if size_kw <= 5:
+            return 20.90  # LKR per kWh for 0-5 kW
+        else:
+            return 19.61  # LKR per kWh for 5-20 kW
+
     def calculate_financial_report(self, system_size_kw, predicted_annual_generation_kwh,
                                    predicted_annual_consumption_kwh):
         """
@@ -42,6 +47,9 @@ class SolarFinancialModel:
         """
         # 1. Deterministic Cost Estimation
         initial_investment_lkr = self.get_system_cost(system_size_kw)
+
+        # NEW: Fetch correct export tariff for the requested system size
+        export_tariff_lkr = self.get_export_tariff(system_size_kw)
 
         # 2. Monte Carlo Simulation (Risk Analysis)
         n_simulations = 2000
@@ -57,12 +65,11 @@ class SolarFinancialModel:
 
             # --- Cash Flow Projection (20 Years) ---
             cumulative_cash = -initial_investment_lkr
-            payback_year = self.PROJECT_LIFETIME + 1  # Default if never pays back
+            payback_year = self.PROJECT_LIFETIME + 1
             paid_back = False
             total_net_profit = 0
             npv = -initial_investment_lkr
 
-            current_export_tariff = self.EXPORT_TARIFF_LKR
             current_import_tariff = self.BASE_IMPORT_TARIFF_LKR
 
             for year in range(1, self.PROJECT_LIFETIME + 1):
@@ -72,7 +79,8 @@ class SolarFinancialModel:
                 if gen_for_year >= predicted_annual_consumption_kwh:
                     savings = predicted_annual_consumption_kwh * current_import_tariff
                     excess_exported = gen_for_year - predicted_annual_consumption_kwh
-                    revenue = excess_exported * current_export_tariff
+                    # UPDATED: Use the dynamic export tariff
+                    revenue = excess_exported * export_tariff_lkr
                 else:
                     savings = gen_for_year * current_import_tariff
                     revenue = 0
@@ -93,7 +101,7 @@ class SolarFinancialModel:
                 discounted_flow = net_flow / ((1 + self.DISCOUNT_RATE) ** year)
                 npv += discounted_flow
 
-                # NEW: Precise Fractional Payback Calculation
+                # Precise Fractional Payback Calculation
                 if cumulative_cash >= 0 and not paid_back:
                     prev_cash = cumulative_cash - net_flow
                     payback_year = (year - 1) + (abs(prev_cash) / net_flow)
@@ -137,6 +145,7 @@ class SolarFinancialModel:
             "Recommendation": rec
         }
 
+
 # =========================================================
 # TEST RUN
 # =========================================================
@@ -144,7 +153,7 @@ roi_model = SolarFinancialModel()
 
 input_size = 5
 input_gen = 7200
-input_consumption = 4800  # NEW: Added mock consumption from Component 3
+input_consumption = 4800
 
 final_output = roi_model.calculate_financial_report(input_size, input_gen, input_consumption)
 print(json.dumps(final_output, indent=4))
