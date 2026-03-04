@@ -57,11 +57,9 @@ class SolarFinancialModel:
 
             # --- Cash Flow Projection (20 Years) ---
             cumulative_cash = -initial_investment_lkr
-            payback_year = 22
+            payback_year = self.PROJECT_LIFETIME + 1  # Default if never pays back
             paid_back = False
             total_net_profit = 0
-
-            # NEW: Start NPV with initial investment as a negative outflow
             npv = -initial_investment_lkr
 
             current_export_tariff = self.EXPORT_TARIFF_LKR
@@ -91,13 +89,14 @@ class SolarFinancialModel:
                 cumulative_cash += net_flow
                 total_net_profit += net_flow
 
-                # NEW: Calculate Discounted Cash Flow and add to NPV
+                # Discounted Cash Flow for NPV
                 discounted_flow = net_flow / ((1 + self.DISCOUNT_RATE) ** year)
                 npv += discounted_flow
 
-                # Check Payback
+                # NEW: Precise Fractional Payback Calculation
                 if cumulative_cash >= 0 and not paid_back:
-                    payback_year = year + (cumulative_cash - net_flow) / net_flow
+                    prev_cash = cumulative_cash - net_flow
+                    payback_year = (year - 1) + (abs(prev_cash) / net_flow)
                     paid_back = True
 
                 # Escalate CEB import tariff ONLY
@@ -107,17 +106,17 @@ class SolarFinancialModel:
             sim_results.append({
                 "ROI": roi_percent,
                 "Payback": payback_year,
-                "NPV": npv  # NEW: Store NPV for each simulation
+                "NPV": npv
             })
 
         # 3. Aggregating Results
         df_sim = pd.DataFrame(sim_results)
         expected_roi = df_sim["ROI"].mean()
         expected_payback = df_sim["Payback"].median()
-        expected_npv = df_sim["NPV"].mean()  # NEW: Calculate mean NPV
+        expected_npv = df_sim["NPV"].mean()
         worst_case_roi = df_sim["ROI"].quantile(0.05)
 
-        # 4. Generate Recommendation (NEW: Base it on NPV, the industry standard)
+        # 4. Generate Recommendation
         if expected_npv > (initial_investment_lkr * 0.5):
             rec = "Excellent Investment: Highly resilient to market risks."
         elif expected_npv > 0:
@@ -128,7 +127,7 @@ class SolarFinancialModel:
         return {
             "System_Size_KW": system_size_kw,
             "Total_Investment_LKR": initial_investment_lkr,
-            "Expected_NPV_LKR": round(expected_npv, 2),  # NEW: Output to JSON
+            "Expected_NPV_LKR": round(expected_npv, 2),
             "Expected_ROI_Percent": round(expected_roi, 2),
             "Payback_Period_Years": round(expected_payback, 1),
             "Risk_Analysis": {
@@ -137,7 +136,6 @@ class SolarFinancialModel:
             },
             "Recommendation": rec
         }
-
 
 # =========================================================
 # TEST RUN
