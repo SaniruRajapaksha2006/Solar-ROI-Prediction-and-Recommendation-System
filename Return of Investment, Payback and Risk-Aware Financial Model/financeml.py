@@ -9,22 +9,20 @@ class SolarFinancialModel:
         # 1. MARKET DATA (Source: Local Vendor Analysis 2024-2025)
         # =========================================================================
         self.PRICING_DATABASE = {
-            3: 750000,  # 3kW Single Phase ~750k - 900k
-            5: 1050000,  # 5kW Single/Three Phase ~975k - 1.2M
-            8: 1450000,  # 8kW ~1.4M - 1.5M
-            10: 1800000,  # 10kW ~1.7M - 1.9M
-            15: 2600000,  # 15kW ~2.5M - 2.8M
-            20: 2900000  # 20kW ~2.8M - 3.0M
+            3: 750000,  # 3kW Single Phase
+            5: 1050000,  # 5kW Single/Three Phase
+            8: 1450000,  # 8kW
+            10: 1800000,  # 10kW
+            15: 2600000,  # 15kW
+            20: 2900000  # 20kW
         }
 
         # =========================================================================
         # 2. POLICY & TARIFF DATA (Source: PUCSL / CEB Revisions)
         # =========================================================================
-        # Average blended import tariff (what the user saves by generating their own power)
         self.BASE_IMPORT_TARIFF_LKR = 45.00
-
-        self.PROJECT_LIFETIME = 20  # Years
-        self.DISCOUNT_RATE = 0.10  # 10% (Avg lending rate / inflation adjust)
+        self.PROJECT_LIFETIME = 20
+        self.DISCOUNT_RATE = 0.10
 
     def get_system_cost(self, size_kw):
         if size_kw in self.PRICING_DATABASE:
@@ -32,13 +30,11 @@ class SolarFinancialModel:
         else:
             return size_kw * 200000
 
-    # NEW: Dynamic export tariff based on system size (Mid-2025 CEB Update)
     def get_export_tariff(self, size_kw):
-        """Returns the fixed export tariff based on system size"""
         if size_kw <= 5:
-            return 20.90  # LKR per kWh for 0-5 kW
+            return 20.90
         else:
-            return 19.61  # LKR per kWh for 5-20 kW
+            return 19.61
 
     def calculate_financial_report(self, system_size_kw, predicted_annual_generation_kwh,
                                    predicted_annual_consumption_kwh):
@@ -47,8 +43,6 @@ class SolarFinancialModel:
         """
         # 1. Deterministic Cost Estimation
         initial_investment_lkr = self.get_system_cost(system_size_kw)
-
-        # NEW: Fetch correct export tariff for the requested system size
         export_tariff_lkr = self.get_export_tariff(system_size_kw)
 
         # 2. Monte Carlo Simulation (Risk Analysis)
@@ -79,7 +73,6 @@ class SolarFinancialModel:
                 if gen_for_year >= predicted_annual_consumption_kwh:
                     savings = predicted_annual_consumption_kwh * current_import_tariff
                     excess_exported = gen_for_year - predicted_annual_consumption_kwh
-                    # UPDATED: Use the dynamic export tariff
                     revenue = excess_exported * export_tariff_lkr
                 else:
                     savings = gen_for_year * current_import_tariff
@@ -122,7 +115,11 @@ class SolarFinancialModel:
         expected_roi = df_sim["ROI"].mean()
         expected_payback = df_sim["Payback"].median()
         expected_npv = df_sim["NPV"].mean()
+
+        # NEW: Comprehensive Worst-Case Risk Metrics
         worst_case_roi = df_sim["ROI"].quantile(0.05)
+        worst_case_npv = df_sim["NPV"].quantile(0.05)
+        worst_case_payback = df_sim["Payback"].quantile(0.95)  # 95th percentile for longest payback
 
         # 4. Generate Recommendation
         if expected_npv > (initial_investment_lkr * 0.5):
@@ -139,8 +136,10 @@ class SolarFinancialModel:
             "Expected_ROI_Percent": round(expected_roi, 2),
             "Payback_Period_Years": round(expected_payback, 1),
             "Risk_Analysis": {
-                "Worst_Case_ROI": round(worst_case_roi, 2),
-                "Certainty": "High" if expected_npv > 0 else "Moderate"
+                "Worst_Case_ROI_Percent": round(worst_case_roi, 2),
+                "Worst_Case_NPV_LKR": round(worst_case_npv, 2),
+                "Worst_Case_Payback_Years": round(worst_case_payback, 1),
+                "Certainty_Score": "High" if worst_case_npv > 0 else "Moderate"  # Stricter certainty check
             },
             "Recommendation": rec
         }
