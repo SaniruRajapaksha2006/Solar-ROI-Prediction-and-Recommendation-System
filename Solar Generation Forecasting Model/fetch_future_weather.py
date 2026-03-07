@@ -1,3 +1,21 @@
+"""
+fetch_future_weather.py
+===========================================================================
+Fetch a 12-month future weather DataFrame for Maharagama / Colombo.
+
+Primary  : Copernicus C3S SEAS5 (GRIB, monthly_mean)
+             • Area-filtered to Sri Lanka
+             • Cached as CSV after first parse
+Fallback : NASA POWER TMY via utils/nasa_power.py
+             • Fills any NaN cell from C3S, or used entirely if C3S fails
+
+OUTPUT — raw weather only, no features, no INV_CAPACITY
+---------------------------------------------------------
+Columns: Month, Solar_Irradiance_GHI, Temperature, Max_Temperature,
+         Min_Temperature, Humidity, Precipitation, Wind_Speed,
+         Clear_Sky_GHI, data_source
+"""
+
 import math
 import os
 import warnings
@@ -12,7 +30,7 @@ warnings.filterwarnings("ignore")
 
 from utils.nasa_power import fetch_tmy
 
-# ── Constants ─────────────────────────────────────────────────────────────────
+# -- Constants -----------------------------------------------------------------
 MAHARAGAMA = {"name": "Maharagama", "lat": 6.8514, "lon": 79.9211}
 COLOMBO    = {"name": "Colombo",    "lat": 6.9271, "lon": 79.8612}
 
@@ -23,9 +41,9 @@ DAYS_IN_MONTH = {1:31, 2:28, 3:31, 4:30, 5:31, 6:30,
                  7:31, 8:31, 9:30, 10:31, 11:30, 12:31}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # C3S HELPERS  (private)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 def _check_cdsapi() -> bool:
     try:
@@ -114,9 +132,9 @@ def _cache_to_dict(cache_df: pd.DataFrame, months_needed: list,
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # C3S FETCH
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 def _fetch_c3s(lat: float, lon: float, start_year: int, start_month: int,
                n_months: int, tmp_dir: str) -> Optional[dict]:
@@ -242,9 +260,9 @@ def _fetch_c3s(lat: float, lon: float, start_year: int, start_month: int,
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # MERGE  (C3S primary + NASA TMY fallback per cell)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 def _merge(c3s: Optional[dict], tmy: dict, months: list) -> pd.DataFrame:
     """Build weather DataFrame, filling NaN C3S cells with NASA TMY values."""
@@ -272,9 +290,9 @@ def _merge(c3s: Optional[dict], tmy: dict, months: list) -> pd.DataFrame:
     return df
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # PUBLIC API
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 def fetch_weather_forecast(
     start_year:     int  = None,
@@ -305,9 +323,9 @@ def fetch_weather_forecast(
     start_month = start_month or today.month
     months      = _months_to_fetch(start_year, start_month, n_months)
 
-    print("\n" + "═"*60)
+    print("\n" + "="*60)
     print("  FUTURE WEATHER FORECAST")
-    print("═"*60)
+    print("="*60)
     print(f"  {n_months} months from {start_year}-{start_month:02d}")
     print(f"  Mode: {'NASA TMY only' if nasa_only else 'C3S + NASA fallback'}")
 
