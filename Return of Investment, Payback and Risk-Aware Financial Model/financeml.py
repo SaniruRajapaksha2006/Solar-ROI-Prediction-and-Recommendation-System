@@ -6,7 +6,7 @@ import json
 class SolarFinancialModel:
     def __init__(self):
         # =========================================================================
-        # 1. MARKET DATA (Source: Local Vendor Analysis 2024-2025)
+        # 1. MARKET DATA (Source: Local Vendor Analysis 2024-2026)
         # =========================================================================
         self.PRICING_DATABASE = {
             3: 750000,  # 3kW Single Phase
@@ -18,46 +18,74 @@ class SolarFinancialModel:
         }
 
         # =========================================================================
-        # 2. POLICY & TARIFF DATA (Source: PUCSL / CEB Revisions)
+        # 2. LOCAL VENDOR DATABASE (Maharagama Area) - NEW FOR COMMIT 7
+        # =========================================================================
+        self.VENDOR_DATABASE = [
+            {
+                "Name": "Genso Power Technologies",
+                "Location": "Maharagama",
+                "Contact": "011 2 000 000",
+                "Specialty": "Residential & Commercial Solar"
+            },
+            {
+                "Name": "Mega Solar (Pvt) Ltd",
+                "Location": "Maharagama",
+                "Contact": "011 2 111 111",
+                "Specialty": "Net Accounting & Hybrid Systems"
+            },
+            {
+                "Name": "Growatt Lanka",
+                "Location": "Maharagama",
+                "Contact": "011 2 222 222",
+                "Specialty": "Inverters & Turnkey Solar Solutions"
+            }
+        ]
+
+        # =========================================================================
+        # 3. POLICY & TARIFF DATA (Sri Lanka CEB/PUCSL)
         # =========================================================================
         self.BASE_IMPORT_TARIFF_LKR = 45.00
-        self.PROJECT_LIFETIME = 20
-        self.DISCOUNT_RATE = 0.10
+        self.PROJECT_LIFETIME = 20  # Years
+        self.DISCOUNT_RATE = 0.10  # 10% Discount rate for NPV
 
     def get_system_cost(self, size_kw):
+        """Estimates total system cost based on size."""
         if size_kw in self.PRICING_DATABASE:
             return self.PRICING_DATABASE[size_kw]
         else:
             return size_kw * 200000
 
     def get_export_tariff(self, size_kw):
+        """Returns the fixed export tariff based on system size"""
         if size_kw <= 5:
-            return 20.90
+            return 20.90  # LKR per kWh for 0-5 kW
         else:
-            return 19.61
+            return 19.61  # LKR per kWh for 5-20 kW
 
     def calculate_financial_report(self, system_size_kw, predicted_annual_generation_kwh,
                                    predicted_annual_consumption_kwh):
         """
         MAIN COMPONENT FUNCTION
         """
-        # 1. Deterministic Cost Estimation
         initial_investment_lkr = self.get_system_cost(system_size_kw)
         export_tariff_lkr = self.get_export_tariff(system_size_kw)
 
-        # 2. Monte Carlo Simulation (Risk Analysis)
+        # ---------------------------------------------------------
+        # 1. MONTE CARLO SIMULATION
+        # ---------------------------------------------------------
         n_simulations = 2000
         sim_results = []
 
         for _ in range(n_simulations):
+            # --- Randomize Uncertain Risk Variables ---
             degradation_rate = np.random.uniform(0.005, 0.010)
             base_maintenance = initial_investment_lkr * 0.01
             annual_maintenance = base_maintenance * np.random.normal(1.0, 0.2)
             inverter_fail_year = np.random.randint(8, 13)
             inverter_cost = initial_investment_lkr * 0.25
-            tariff_escalation = np.random.uniform(0.02, 0.05)
+            import_tariff_escalation = np.random.uniform(0.02, 0.05)
 
-            # --- Cash Flow Projection (20 Years) ---
+            # --- Cash Flow Projection ---
             cumulative_cash = -initial_investment_lkr
             payback_year = self.PROJECT_LIFETIME + 1
             paid_back = False
@@ -80,19 +108,18 @@ class SolarFinancialModel:
 
                 total_financial_benefit = savings + revenue
 
-                # Costs
+                # Costs for the year
                 year_cost = annual_maintenance
                 if year == inverter_fail_year:
                     year_cost += inverter_cost
 
-                # Net Cash Flow
+                # Net Cash Flow & NPV
                 net_flow = total_financial_benefit - year_cost
+                discounted_flow = net_flow / ((1 + self.DISCOUNT_RATE) ** year)
+
+                npv += discounted_flow
                 cumulative_cash += net_flow
                 total_net_profit += net_flow
-
-                # Discounted Cash Flow for NPV
-                discounted_flow = net_flow / ((1 + self.DISCOUNT_RATE) ** year)
-                npv += discounted_flow
 
                 # Precise Fractional Payback Calculation
                 if cumulative_cash >= 0 and not paid_back:
@@ -101,7 +128,7 @@ class SolarFinancialModel:
                     paid_back = True
 
                 # Escalate CEB import tariff ONLY
-                current_import_tariff *= (1 + tariff_escalation)
+                current_import_tariff *= (1 + import_tariff_escalation)
 
             roi_percent = (total_net_profit / initial_investment_lkr) * 100
             sim_results.append({
@@ -110,18 +137,21 @@ class SolarFinancialModel:
                 "NPV": npv
             })
 
-        # 3. Aggregating Results
+        # ---------------------------------------------------------
+        # 2. AGGREGATING RESULTS (Includes Commit 6 Logic)
+        # ---------------------------------------------------------
         df_sim = pd.DataFrame(sim_results)
+
         expected_roi = df_sim["ROI"].mean()
         expected_payback = df_sim["Payback"].median()
         expected_npv = df_sim["NPV"].mean()
 
-        # NEW: Comprehensive Worst-Case Risk Metrics
+        # Stricter risk metrics (5th percentile for ROI/NPV, 95th for Payback)
         worst_case_roi = df_sim["ROI"].quantile(0.05)
         worst_case_npv = df_sim["NPV"].quantile(0.05)
-        worst_case_payback = df_sim["Payback"].quantile(0.95)  # 95th percentile for longest payback
+        worst_case_payback = df_sim["Payback"].quantile(0.95)
 
-        # 4. Generate Recommendation
+        # Recommendation based on NPV
         if expected_npv > (initial_investment_lkr * 0.5):
             rec = "Excellent Investment: Highly resilient to market risks."
         elif expected_npv > 0:
@@ -129,19 +159,23 @@ class SolarFinancialModel:
         else:
             rec = "High Risk / Marginal Return: Consider a different system size or tariff scheme."
 
+        # ---------------------------------------------------------
+        # 3. RETURN FINAL JSON
+        # ---------------------------------------------------------
         return {
             "System_Size_KW": system_size_kw,
             "Total_Investment_LKR": initial_investment_lkr,
             "Expected_NPV_LKR": round(expected_npv, 2),
             "Expected_ROI_Percent": round(expected_roi, 2),
-            "Payback_Period_Years": round(expected_payback, 1),
+            "Expected_Payback_Years": round(expected_payback, 1),
             "Risk_Analysis": {
                 "Worst_Case_ROI_Percent": round(worst_case_roi, 2),
                 "Worst_Case_NPV_LKR": round(worst_case_npv, 2),
                 "Worst_Case_Payback_Years": round(worst_case_payback, 1),
-                "Certainty_Score": "High" if worst_case_npv > 0 else "Moderate"  # Stricter certainty check
+                "Certainty_Score": "High" if worst_case_npv > 0 else "Moderate"
             },
-            "Recommendation": rec
+            "Recommendation": rec,
+            "Recommended_Local_Vendors": self.VENDOR_DATABASE  # NEW: Appended to the output!
         }
 
 
