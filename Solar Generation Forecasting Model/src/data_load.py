@@ -1,12 +1,12 @@
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-import requests
+
+from utils.nasa_power import fetch_monthly, label_monthly, NASA_PARAMS
 
 
 class DataLoader:
-    
+
     def __init__(self):
         pass
 
@@ -14,106 +14,59 @@ class DataLoader:
         path = Path(ceb_file_path)
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
-        try:
-            print("Loading CEB data...")
-            ceb_data = pd.read_csv(path)
 
-            print("Filtering solar records...")
-            solar_data = ceb_data[ceb_data["HAS_SOLAR"] == 1].copy()
-            solar_data = solar_data.drop(columns=["HAS_SOLAR"])
+        print("Loading CEB data...")
+        ceb_data = pd.read_csv(path)
 
-            print(f"Loaded {len(solar_data):,} solar records")
-            return solar_data
+        print("Filtering solar records...")
+        solar_data = ceb_data[ceb_data["HAS_SOLAR"] == 1].copy()
+        solar_data = solar_data.drop(columns=["HAS_SOLAR"])
 
-        except FileNotFoundError as e:
-            print(e)
+        print(f"Loaded {len(solar_data):,} solar records")
+        return solar_data
 
     def load_local_weather_data(self, weather_path: str | Path = "data/raw/data_2025.csv"):
         path = Path(weather_path)
         if not path.exists():
             raise FileNotFoundError(f"Weather file not found: {path}")
-        try:
-            print(f"Loading weather data: {path}")
-            df = pd.read_csv(path)
-            print(f"Loaded {len(df)} months")
-            return df
-        except FileNotFoundError as e:
-            print(e)
 
-    def fetch_weather_data(self, NASA_API:str, latitude:float, longitude:float,
-                           start_yr:int=2025, end_yr:int=2025, save:bool=True, savePath:str|Path="data/raw/"
-                           , params:dict=None):
-        print(f"\nFetching NASA POWER weather data...")
-        print(f"  Location: {latitude}°N, {longitude}°E")
-        print(f"  Year: {start_yr}-{end_yr}")
+        print(f"Loading weather data: {path}")
+        df = pd.read_csv(path)
+        print(f"Loaded {len(df)} months")
+        return df
 
-        params_str = ",".join(params.keys())
-        url = (
-            f"{NASA_API}?"
-            f"parameters={params_str}&"
-            f"community=SB&"
-            f"longitude={longitude}&"
-            f"latitude={latitude}&"
-            f"start={start_yr}&"
-            f"end={end_yr}&"
-            f"format=JSON"
-        )
-        try:
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
-            data_2025 = response.json()
+    def fetch_weather_data(self, latitude: float, longitude: float,
+                           start_yr: int = 2025, end_yr: int = 2025,
+                           params: dict = None, save: bool = True,
+                           save_path: str | Path = "data/raw/data_2025.csv") -> pd.DataFrame:
+        """
+        Fetch NASA POWER monthly weather and return as labeled DataFrame.
+        """
+        if params is None:
+            params = NASA_PARAMS
 
-            if data_2025:
-                print("\nData received")
-                if save:
-                    labeled_data = self.labeling(data_2025, params)
-                    save_dir = Path(savePath)
-                    path = save_dir / "data_2025.csv"
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    labeled_data.to_csv(path, index=False)
-                    return labeled_data
+        raw = fetch_monthly(lat=latitude, lon=longitude,
+                            start_yr=start_yr, end_yr=end_yr, params=params)
 
-                return data_2025
-            return None
+        df = label_monthly(raw, params=params, year=start_yr)
 
-        except Exception as e:
-            print(e)
-            return None
+        if save:
+            path = Path(save_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            df.to_csv(path, index=False)
+            print(f"Saved: {path}")
 
-    def labeling(self, data:str, params:dict={}):
-        print("Labeling data...")
-        weather_2025 = []
-
-        if data:
-            param_data = data['properties']['parameter']
-
-            for month in range(1, 13):
-                date_key = f"2025{month:02d}"
-                row = {'Month': month}
-
-                for orig_name, readable_name in params.items():
-                    if date_key in param_data[orig_name]:
-                        row[readable_name] = param_data[orig_name][date_key]
-                    else:
-                        row[readable_name] = np.nan  # Mark as missing
-
-                weather_2025.append(row)
-        weather_df = pd.DataFrame(weather_2025)
-        print("Finished labeling data")
-        return weather_df
+        return df
 
     def merge_ceb_weather(self, ceb_df: pd.DataFrame, weather_df: pd.DataFrame):
         print("Merging CEB + Weather data...")
-
-        ceb_df.rename(columns={"MONTH": "Month"}, inplace=True)
-
-        print(f"Merged: {len(ceb_df):,} records")
-        print(f"Columns: {ceb_df.shape[1]}")
-        return ceb_df.merge(weather_df, on='Month', how='left')
+        ceb_df = ceb_df.rename(columns={"MONTH": "Month"})
+        merged = ceb_df.merge(weather_df, on="Month", how="left")
+        print(f"Merged: {len(merged):,} records  |  Columns: {merged.shape[1]}")
+        return merged
 
     def save_data(self, df: pd.DataFrame, filepath: str | Path):
-        """Save DataFrame to CSV. Pass full path for IDE/terminal consistency."""
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(path, index=False)
-        print(f"\nSaved: {path}")
+        print(f"Saved: {path}")
