@@ -18,7 +18,7 @@ class SolarFinancialModel:
         }
 
         # =========================================================================
-        # 2. LOCAL VENDOR DATABASE (Maharagama Area) - NEW FOR COMMIT 7
+        # 2. LOCAL VENDOR DATABASE (Maharagama Area)
         # =========================================================================
         self.VENDOR_DATABASE = [
             {
@@ -137,57 +137,76 @@ class SolarFinancialModel:
                 "NPV": npv
             })
 
-            # ---------------------------------------------------------
-            # 2. AGGREGATING RESULTS
-            # ---------------------------------------------------------
-            df_sim = pd.DataFrame(sim_results)
+        # ---------------------------------------------------------
+        # 2. AGGREGATING RESULTS
+        # ---------------------------------------------------------
+        df_sim = pd.DataFrame(sim_results)
 
-            expected_roi = df_sim["ROI"].mean()
-            expected_payback = df_sim["Payback"].median()
-            expected_npv = df_sim["NPV"].mean()
+        expected_roi = df_sim["ROI"].mean()
+        expected_payback = df_sim["Payback"].median()
+        expected_npv = df_sim["NPV"].mean()
 
-            # Risk metrics (Existing)
-            worst_case_roi = df_sim["ROI"].quantile(0.05)
-            worst_case_npv = df_sim["NPV"].quantile(0.05)
-            worst_case_payback = df_sim["Payback"].quantile(0.95)
+        # Risk metrics
+        worst_case_roi = df_sim["ROI"].quantile(0.05)
+        worst_case_npv = df_sim["NPV"].quantile(0.05)
+        worst_case_payback = df_sim["Payback"].quantile(0.95)
 
-            # NEW: Advanced Scenario Analysis Metrics for Frontend
-            best_case_roi = df_sim["ROI"].quantile(0.95)
-            shortest_payback = df_sim["Payback"].quantile(0.10)
-            prob_positive_roi = (df_sim["ROI"] > 0).mean() * 100
+        # Advanced Scenario Analysis Metrics for Frontend
+        best_case_roi = df_sim["ROI"].quantile(0.95)
+        shortest_payback = df_sim["Payback"].quantile(0.10)
+        prob_positive_roi = (df_sim["ROI"] > 0).mean() * 100
 
-            # Recommendation based on NPV
-            if expected_npv > (initial_investment_lkr * 0.5):
-                rec = "Excellent Investment: Highly resilient to market risks."
-            elif expected_npv > 0:
-                rec = "Good Investment: Profitable over the system lifetime."
-            else:
-                rec = "High Risk / Marginal Return: Consider a different system size or tariff scheme."
+        # Recommendation based on NPV
+        if expected_npv > (initial_investment_lkr * 0.5):
+            rec = "Excellent Investment: Highly resilient to market risks."
+        elif expected_npv > 0:
+            rec = "Good Investment: Profitable over the system lifetime."
+        else:
+            rec = "High Risk / Marginal Return: Consider a different system size or tariff scheme."
 
-            # ---------------------------------------------------------
-            # 3. RETURN FINAL JSON
-            # ---------------------------------------------------------
-            return {
-                "System_Size_KW": system_size_kw,
-                "Total_Investment_LKR": initial_investment_lkr,
-                "Expected_NPV_LKR": round(expected_npv, 2),
-                "Expected_ROI_Percent": round(expected_roi, 2),
-                "Expected_Payback_Years": round(expected_payback, 1),
-                "Risk_Analysis": {
-                    "Worst_Case_ROI_Percent": round(worst_case_roi, 2),
-                    "Worst_Case_NPV_LKR": round(worst_case_npv, 2),
-                    "Worst_Case_Payback_Years": round(worst_case_payback, 1),
-                    "Certainty_Score": "High" if worst_case_npv > 0 else "Moderate"
-                },
-                # NEW: Frontend Scenario Analysis Block
-                "Scenario_Analysis": {
-                    "Best_Case_ROI_Percent": round(best_case_roi, 2),
-                    "Shortest_Payback_Years": round(shortest_payback, 1),
-                    "Probability_Positive_ROI": round(prob_positive_roi, 1)
-                },
-                "Recommendation": rec,
-                "Recommended_Local_Vendors": self.VENDOR_DATABASE
+        # ---------------------------------------------------------
+        # 3. GENERATING DATA FOR FRONTEND CHARTS
+        # ---------------------------------------------------------
+        # Calculate the baseline expected yearly cash flow for the Bar Chart
+        yearly_net_cashflow = []
+        expected_annual_return = initial_investment_lkr * (expected_roi / 100) / self.PROJECT_LIFETIME
+
+        for year in range(1, self.PROJECT_LIFETIME + 1):
+            yearly_net = expected_annual_return
+            if year == 10:  # Inverter Replacement Dip
+                yearly_net -= (initial_investment_lkr * 0.25)
+
+            yearly_net_cashflow.append(round(yearly_net, 2))
+
+        # ---------------------------------------------------------
+        # 4. RETURN FINAL JSON
+        # ---------------------------------------------------------
+        return {
+            "System_Size_KW": system_size_kw,
+            "Total_Investment_LKR": initial_investment_lkr,
+            "Expected_NPV_LKR": round(expected_npv, 2),
+            "Expected_ROI_Percent": round(expected_roi, 2),
+            "Expected_Payback_Years": round(expected_payback, 1),
+            "Risk_Analysis": {
+                "Worst_Case_ROI_Percent": round(worst_case_roi, 2),
+                "Worst_Case_NPV_LKR": round(worst_case_npv, 2),
+                "Worst_Case_Payback_Years": round(worst_case_payback, 1),
+                "Certainty_Score": "High" if worst_case_npv > 0 else "Moderate"
+            },
+            "Scenario_Analysis": {
+                "Best_Case_ROI_Percent": round(best_case_roi, 2),
+                "Shortest_Payback_Years": round(shortest_payback, 1),
+                "Probability_Positive_ROI": round(prob_positive_roi, 1)
+            },
+            "Recommendation": rec,
+            "Recommended_Local_Vendors": self.VENDOR_DATABASE,
+
+            # THE EXACT DATA YOUR HTML CHARTS NEED
+            "Chart_Data": {
+                "Years_Labels": list(range(1, 21)),
+                "Yearly_Revenue_Forecast": yearly_net_cashflow
             }
+        }
 
 
 # =========================================================
