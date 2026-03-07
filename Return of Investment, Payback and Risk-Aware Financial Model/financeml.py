@@ -165,10 +165,15 @@ class SolarFinancialModel:
             rec = "High Risk / Marginal Return: Consider a different system size or tariff scheme."
 
         # ---------------------------------------------------------
-        # 3. GENERATING DATA FOR FRONTEND CHARTS
+        # 3. GENERATING DATA FOR FRONTEND CHARTS (NEW FOR COMMIT 10)
         # ---------------------------------------------------------
-        # Calculate the baseline expected yearly cash flow for the Bar Chart
         yearly_net_cashflow = []
+
+        # Initialize cumulative tracking arrays for Year 0
+        baseline_cum_cashflow = [-initial_investment_lkr]
+        p10_cum_cashflow = [-initial_investment_lkr]
+        p90_cum_cashflow = [-initial_investment_lkr]
+
         expected_annual_return = initial_investment_lkr * (expected_roi / 100) / self.PROJECT_LIFETIME
 
         for year in range(1, self.PROJECT_LIFETIME + 1):
@@ -177,6 +182,18 @@ class SolarFinancialModel:
                 yearly_net -= (initial_investment_lkr * 0.25)
 
             yearly_net_cashflow.append(round(yearly_net, 2))
+
+            # Step the cumulative totals forward
+            current_cum = baseline_cum_cashflow[-1] + yearly_net
+            baseline_cum_cashflow.append(round(current_cum, 2))
+
+            # Synthetic confidence bounds (P10 = 15% worse, P90 = 15% better) for shaded line chart
+            p10_cum_cashflow.append(round(current_cum * 0.85, 2))
+            p90_cum_cashflow.append(round(current_cum * 1.15, 2))
+
+        # Extract Monte Carlo arrays for the Histograms
+        roi_distribution = df_sim["ROI"].round(2).tolist()
+        npv_distribution = df_sim["NPV"].round(2).tolist()
 
         # ---------------------------------------------------------
         # 4. RETURN FINAL JSON
@@ -201,10 +218,15 @@ class SolarFinancialModel:
             "Recommendation": rec,
             "Recommended_Local_Vendors": self.VENDOR_DATABASE,
 
-            # THE EXACT DATA YOUR HTML CHARTS NEED
+            # --- THE EXACT DATA YOUR HTML CHARTS NEED ---
             "Chart_Data": {
-                "Years_Labels": list(range(1, 21)),
-                "Yearly_Revenue_Forecast": yearly_net_cashflow
+                "Years_Labels_0_to_20": list(range(0, 21)),
+                "Yearly_Revenue_Forecast": yearly_net_cashflow,
+                "Cumulative_Cash_Flow_Expected": baseline_cum_cashflow,
+                "Cumulative_Cash_Flow_P10": p10_cum_cashflow,
+                "Cumulative_Cash_Flow_P90": p90_cum_cashflow,
+                "Monte_Carlo_ROI_Distribution": roi_distribution,
+                "Monte_Carlo_NPV_Distribution": npv_distribution
             }
         }
 
@@ -219,4 +241,12 @@ input_gen = 7200
 input_consumption = 4800
 
 final_output = roi_model.calculate_financial_report(input_size, input_gen, input_consumption)
-print(json.dumps(final_output, indent=4))
+
+# Temporarily truncate the massive arrays for terminal viewing readability
+display_output = final_output.copy()
+display_output["Chart_Data"][
+    "Monte_Carlo_ROI_Distribution"] = f"[{len(final_output['Chart_Data']['Monte_Carlo_ROI_Distribution'])} simulated data points...]"
+display_output["Chart_Data"][
+    "Monte_Carlo_NPV_Distribution"] = f"[{len(final_output['Chart_Data']['Monte_Carlo_NPV_Distribution'])} simulated data points...]"
+
+print(json.dumps(display_output, indent=4))
