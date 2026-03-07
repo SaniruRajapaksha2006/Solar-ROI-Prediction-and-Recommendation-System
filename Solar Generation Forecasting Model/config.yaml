@@ -1,0 +1,103 @@
+# ═══════════════════════════════════════════════════════════════
+# config.yaml — Solar ROI Pipeline Configuration
+#
+# Single source of truth for all constants used across:
+#   data_pipeline.py, feature_engineering.py, predict.py,
+#   fetch_future_weather.py, utils/nasa_power.py
+# ═══════════════════════════════════════════════════════════════
+
+
+# ── Location ────────────────────────────────────────────────────
+location:
+  primary:
+    name: Maharagama
+    lat: 6.8514
+    lon: 79.9211
+  fallback:
+    name: Colombo
+    lat: 6.9271
+    lon: 79.8612
+
+
+# ── Data Paths ──────────────────────────────────────────────────
+paths:
+  ceb_dataset:   "processed/MASTER_DATASET_ALL_10TRANSFORMERS.csv"
+  weather_cache: "solar_forecasting/data/raw/data_2025.csv"
+  processed_dir: "solar_forecasting/data/processed"
+  model:         "models/best_solar_pipeline.pkl"
+
+  save_intermediates: false
+  final_dataset: "final.csv"
+
+
+# ── NASA POWER API ──────────────────────────────────────────────
+nasa:
+  monthly_url:     "https://power.larc.nasa.gov/api/temporal/monthly/point"
+  climatology_url: "https://power.larc.nasa.gov/api/temporal/climatology/point"
+  community:       "RE"
+  timeout_seconds: 60
+  fill_value:      -999.0
+  # Training data year range for historical imputation
+  impute_start_year: 2018
+  impute_end_year:   2022
+  # Months that typically have missing GHI in CEB dataset
+  impute_months: [11, 12]
+  params:
+    ALLSKY_SFC_SW_DWN: Solar_Irradiance_GHI  # kWh/m²/day
+    T2M:               Temperature            # °C  (monthly mean)
+    T2M_MAX:           Max_Temperature        # °C
+    T2M_MIN:           Min_Temperature        # °C
+    RH2M:              Humidity               # %
+    PRECTOTCORR:       Precipitation          # mm/day
+    WS10M:             Wind_Speed             # m/s
+    CLRSKY_SFC_SW_DWN: Clear_Sky_GHI         # kWh/m²/day
+
+
+# ── Solar Physics Constants ─────────────────────────────────────
+physics:
+  performance_ratio: 0.80    # System losses: inverter, wiring, soiling
+  temp_coefficient:  -0.005  # Panel efficiency loss per °C above 25°C
+  temp_reference:    25.0    # Reference temperature (°C) for efficiency calc
+  humidity_default:  75.0    # Fallback RH% for Sri Lanka tropical climate
+
+
+# ── Pipeline: Outlier Detection ─────────────────────────────────
+outlier_detection:
+  iqr_threshold:     1.5
+  target_column:     "EXPORT_kWh"
+
+
+# ── Pipeline: Feature Selection ─────────────────────────────────
+feature_selection:
+  correlation_threshold: 0.05
+  target_column:         "EXPORT_kWh"
+  # Columns to drop before modelling (non-informative or redundant)
+  drop_columns:
+    - TRANSFORMER_CODE
+    - TRANSFORMER_LAT
+    - TRANSFORMER_LON
+    - CUSTOMER_LAT
+    - CUSTOMER_LON
+    - DISTANCE_FROM_TF_M
+    - DATA_QUALITY
+    - SOURCE
+    - CAL_TARIFF
+    - PHASE
+    - YEAR
+    - HAS_SOLAR
+    - NET_CONSUMPTION_kWh
+    - IMPORT_kWh
+    - Max_Temperature    # correlated with Temperature
+    - Min_Temperature    # correlated with Temperature
+    - Clear_Sky_GHI      # correlated with Solar_Irradiance_GHI
+
+
+# ── Pipeline: Residential Filter ────────────────────────────────
+residential:
+  max_capacity_kw: 20   # Sri Lanka residential solar cap — filters commercial
+
+
+# ── ROI / Financial Constants ────────────────────────────────────
+roi:
+  net_plus_tariff_lkr:  37.00     # LKR per kWh (Net Plus, PUCSL 2025)
+  mae_kwh_per_kw:       18.0      # kWh/kW — model uncertainty margin
