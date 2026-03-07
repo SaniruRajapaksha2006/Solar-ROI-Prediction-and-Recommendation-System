@@ -1,78 +1,99 @@
 import numpy as np
 import pandas as pd
-from src.data_load import DataLoader
+
+from utils.nasa_power import fetch_monthly, NASA_PARAMS
+
 
 class HandleMissing:
 
     def __init__(self):
         pass
 
-    def analysis_missing(self, dataframe:pd.DataFrame):
+    def analysis_missing(self, dataframe: pd.DataFrame) -> pd.DataFrame:
         missing_stat = []
 
         for col in dataframe.columns:
             dataframe[col] = dataframe[col].replace(-999, np.nan)
-            missingCount = dataframe[col].isna().sum()
-            if missingCount:
+            count = dataframe[col].isna().sum()
+            if count:
                 missing_stat.append({
-                    'Column': col,
-                    'Missing': missingCount,
-                    'Percent': f"{missingCount / len(dataframe) * 100:.1f}%"
+                    "Column":  col,
+                    "Missing": count,
+                    "Percent": f"{count / len(dataframe) * 100:.1f}%"
                 })
 
         if not missing_stat:
             print("No missing values found")
-            print(missing_stat)
             return pd.DataFrame()
 
         stats_df = pd.DataFrame(missing_stat)
         print(stats_df.to_string(index=False))
         print("-" * 40)
-
         return stats_df
 
+    def impute_missing(self, data: pd.DataFrame, missing_stats: pd.DataFrame,
+                       latitude: float, longitude: float,
+                       impute_months: list = None,
+                       start_yr: int = 2018, end_yr: int = 2022,
+                       params: dict = None) -> pd.DataFrame:
+        """
+        Fill missing Solar_Irradiance_GHI and Clear_Sky_GHI for specific months
+        using a 5-year average from NASA POWER monthly data.
 
-    def impute_missing(self, data:pd.DataFrame, missing_stats:pd.DataFrame, params:dict,
-                       NASA_API:str, latitude:float, longitude:float, start_yr:int=2014, end_yr:int=2024,
-                       save:bool=False, savePath:str="data/raw/"):
+        Args:
+            data           : DataFrame with Month column and solar columns
+            missing_stats  : output of analysis_missing() - used to check which
+                             columns actually need imputation
+            latitude       : location latitude
+            longitude      : location longitude
+            impute_months  : list of month numbers to fill (default: [11, 12])
+            start_yr       : historical average start year (default: 2018)
+            end_yr         : historical average end year   (default: 2022)
+            params         : NASA param map (default: NASA_PARAMS)
 
-        loader = DataLoader()
+        Returns:
+            DataFrame with missing values filled
+        """
+        if params is None:
+            params = NASA_PARAMS
 
-        new_params = {}
-        for org_name, read_name in params.items():
-            if read_name in missing_stats.columns:
-                new_params[org_name] = read_name
+        if impute_months is None:
+            impute_months = [11, 12]
+
+        # Only fetch if these columns are actually missing
+        cols_to_fill = ["Solar_Irradiance_GHI", "Clear_Sky_GHI"]
+        if not any(col in missing_stats["Column"].values for col in cols_to_fill):
+            print("No solar columns missing - skipping imputation")
+            return data
 
         try:
-            data_hist = loader.fetch_weather_data(NASA_API=NASA_API,
-                                                   latitude=latitude,
-                                                   longitude=longitude,
-                                                   start_yr=start_yr,
-                                                   end_yr=end_yr,
-                                                   save=save,
-                                                   savePath=savePath,
-                                                   params=params
-                                                   )
+            raw = fetch_monthly(lat=latitude, lon=longitude,
+                                start_yr=start_yr, end_yr=end_yr, params=params)
 
-            param_allsky = data_hist['properties']['parameter']['ALLSKY_SFC_SW_DWN']
-            param_csky   = data_hist['properties']['parameter']['CLRSKY_SFC_SW_DWN']
+            param_data = raw["properties"]["parameter"]
+            allsky = param_data["ALLSKY_SFC_SW_DWN"]
+            clrsky = param_data["CLRSKY_SFC_SW_DWN"]
 
-            averages = {}
-            for month in [11, 12]:
-                vals_allsky = [param_allsky[f"{year}{month:02d}"] for year in range(2018, 2023)]
-                vals_csky   = [param_csky[f"{year}{month:02d}"] for year in range(2018, 2023)]
+            for month in impute_months:
+                # Average across years for this month
+                allsky_vals = [allsky[f"{yr}{month:02d}"] for yr in range(start_yr, end_yr + 1)
+                               if f"{yr}{month:02d}" in allsky]
+                clrsky_vals = [clrsky[f"{yr}{month:02d}"] for yr in range(start_yr, end_yr + 1)
+                               if f"{yr}{month:02d}" in clrsky]
 
-                averages[month] = {
-                    'Solar_Irradiance_GHI': round(sum(vals_allsky)/len(vals_allsky),2),
-                    'Clear_Sky_GHI': round(sum(vals_csky)/len(vals_csky),2)
-                }
+                if allsky_vals:
+                    avg_allsky = round(sum(allsky_vals) / len(allsky_vals), 2)
+                    data.loc[data["Month"].astype(int) == month, "Solar_Irradiance_GHI"] = avg_allsky
 
-            for month in [11, 12]:
-                data.loc[data['Month'].astype(int)==month, 'Solar_Irradiance_GHI'] = averages[month]['Solar_Irradiance_GHI']
-                data.loc[data['Month'].astype(int)==month, 'Clear_Sky_GHI'] = averages[month]['Clear_Sky_GHI']
+                if clrsky_vals:
+                    avg_clrsky = round(sum(clrsky_vals) / len(clrsky_vals), 2)
+                    data.loc[data["Month"].astype(int) == month, "Clear_Sky_GHI"] = avg_clrsky
 
-            print(f"\nFilled missing months")
+                print(f"  Filled month {month}: GHI={avg_allsky:.2f}, ClearSky={avg_clrsky:.2f}")
+
+            print(f"Imputed {len(impute_months)} months using {start_yr}–{end_yr} average")
             return data
 
         except Exception as e:
-            print(f"✗ Could not fetch 10-year historical data: {e}")
+            print(f"✗ Imputation failed: {e}")
+            return data
