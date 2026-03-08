@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SolarGrid Intelligence</title>
+  <title>Kinetic — Solar Transformer Suitability</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230f1419'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23f97316'/%3E%3Ccircle cx='16' cy='8' r='2' fill='%23eab308'/%3E%3Ccircle cx='16' cy='24' r='2' fill='%23eab308'/%3E%3Ccircle cx='8' cy='16' r='2' fill='%23eab308'/%3E%3Ccircle cx='24' cy='16' r='2' fill='%23eab308'/%3E%3C/svg%3E" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -11,32 +12,42 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <style>
-    /* ── Design tokens ─────────────────────────────────────────────────── */
+    /* ── Design tokens (Light mode, solaric palette) ─────────────────────── */
     :root {
-      --bg:         #0a0e1a;
-      --surface:    #111827;
-      --surface2:   #1c2539;
-      --border:     #1f2d45;
-      --text:       #e2e8f0;
-      --muted:      #64748b;
-      --accent:     #00d4ff;
-      --accent2:    #7c3aed;
-      --green:      #10b981;
+      --bg:         #ffffff;
+      --surface:    #fafcf9;
+      --surface2:   #f0f5ec;
+      --border:     #e2e8dc;
+      --text:       #1a1f18;
+      --muted:      #5a6b52;
+      --accent:     #f59e0b;
+      --accent2:    #eab308;
+      --solar-orange: #f97316;
+      --solar-yellow: #eab308;
+      --solar-green:  #22c55e;
+      --solar-red:    #ef4444;
+      --green:      #22c55e;
       --amber:      #f59e0b;
       --red:        #ef4444;
       --mono:       'Space Mono', monospace;
       --sans:       'DM Sans', sans-serif;
     }
 
+    /* ── Highlight boxes (solaric accents) ───────────────────────────────── */
+    .highlight-orange { background: rgba(249,115,22,0.12); border: 1px solid rgba(249,115,22,0.35); border-radius: 10px; }
+    .highlight-yellow { background: rgba(234,179,8,0.12);  border: 1px solid rgba(234,179,8,0.35);  border-radius: 10px; }
+    .highlight-green  { background: rgba(34,197,94,0.12);  border: 1px solid rgba(34,197,94,0.35);  border-radius: 10px; }
+    .highlight-red    { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.35);  border-radius: 10px; }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
 
-    /* ── Noise texture overlay ─────────────────────────────────────────── */
+    /* ── Subtle texture overlay (light mode) ─────────────────────────────── */
     body::before {
       content: '';
       position: fixed; inset: 0; z-index: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.02'/%3E%3C/svg%3E");
       pointer-events: none;
     }
 
@@ -56,19 +67,24 @@
       display: flex;
       align-items: center;
       gap: 16px;
-      background: rgba(10,14,26,0.85);
+      background: rgba(255,255,255,0.95);
       backdrop-filter: blur(12px);
+      box-shadow: 0 1px 0 var(--border);
       position: sticky; top: 0; z-index: 100;
     }
 
     .topbar-logo {
       font-family: var(--mono);
-      font-size: 15px;
+      font-size: 18px;
       font-weight: 700;
-      letter-spacing: 0.05em;
-      color: var(--accent);
+      letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .topbar-logo span { color: var(--text); }
+    .topbar-logo .kinetic-kin { color: var(--solar-orange); }
+    .topbar-logo .kinetic-etic { color: var(--solar-green); }
+    .topbar-logo .kinetic-dot { color: var(--solar-yellow); font-size: 12px; }
 
     .topbar-tag {
       font-size: 10px;
@@ -106,7 +122,7 @@
       font-size: 11px;
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: var(--accent);
+      color: var(--solar-orange);
       margin-bottom: 20px;
       display: flex; align-items: center; gap: 12px;
     }
@@ -114,7 +130,7 @@
       content: '';
       display: block;
       width: 32px; height: 1px;
-      background: var(--accent);
+      background: linear-gradient(90deg, var(--solar-orange), var(--solar-yellow));
     }
 
     .hero-title {
@@ -125,7 +141,7 @@
       margin-bottom: 24px;
     }
     .hero-title strong { font-weight: 600; }
-    .hero-title .accent { color: var(--accent); }
+    .hero-title .accent { color: var(--solar-orange); }
 
     .hero-desc {
       color: var(--muted);
@@ -142,12 +158,13 @@
       padding: 32px;
       position: relative;
       overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
     }
     .form-card::before {
       content: '';
       position: absolute;
       top: -1px; left: 24px; right: 24px; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      background: linear-gradient(90deg, transparent, var(--solar-red), var(--solar-orange), var(--solar-yellow), var(--solar-green), transparent);
     }
 
     .form-section-label {
@@ -155,7 +172,7 @@
       font-size: 10px;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--accent);
+      color: var(--solar-orange);
       margin-bottom: 16px;
       margin-top: 24px;
     }
@@ -172,7 +189,7 @@
     }
 
     .field-input {
-      background: var(--surface2);
+      background: #ffffff;
       border: 1px solid var(--border);
       border-radius: 8px;
       color: var(--text);
@@ -184,8 +201,8 @@
     }
     .field-input:focus {
       outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(0,212,255,0.08);
+      border-color: var(--solar-orange);
+      box-shadow: 0 0 0 3px rgba(249,115,22,0.15);
     }
 
     .divider {
@@ -194,12 +211,32 @@
       margin: 24px 0;
     }
 
+    .btn-gps {
+      padding: 12px 18px;
+      background: linear-gradient(135deg, var(--solar-green), #16a34a);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-gps:hover:not(:disabled) {
+      box-shadow: 0 0 20px rgba(34,197,94,0.4);
+      transform: translateY(-1px);
+    }
+    .btn-gps:disabled { opacity: 0.6; cursor: not-allowed; }
+
     .btn-assess {
       width: 100%;
       margin-top: 8px;
       padding: 16px;
-      background: var(--accent);
-      color: #0a0e1a;
+      background: linear-gradient(135deg, var(--solar-orange), var(--solar-yellow));
+      color: #0f1419;
       border: none;
       border-radius: 10px;
       font-family: var(--mono);
@@ -212,7 +249,7 @@
       display: flex; align-items: center; justify-content: center; gap: 10px;
     }
     .btn-assess:hover:not(:disabled) {
-      box-shadow: 0 0 30px rgba(0,212,255,0.35);
+      box-shadow: 0 0 30px rgba(249,115,22,0.4);
       transform: translateY(-1px);
     }
     .btn-assess:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -258,7 +295,7 @@
       transition: color 0.2s, border-color 0.2s;
       display: flex; align-items: center; gap: 8px;
     }
-    .back-btn:hover { color: var(--text); border-color: var(--accent); }
+    .back-btn:hover { color: var(--text); border-color: var(--solar-orange); }
 
     .results-title { font-size: 26px; font-weight: 300; letter-spacing: -0.02em; }
     .results-title strong { font-weight: 600; }
@@ -285,14 +322,14 @@
       content: '';
       position: absolute;
       bottom: 0; left: 0; right: 0; height: 2px;
-      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      background: linear-gradient(90deg, var(--solar-red), var(--solar-orange), var(--solar-yellow), var(--solar-green));
     }
 
     .stat-tile-val {
       font-family: var(--mono);
       font-size: 28px;
       font-weight: 700;
-      color: var(--accent);
+      color: var(--solar-yellow);
       line-height: 1;
     }
     .stat-tile-val.green { color: var(--green); }
@@ -362,8 +399,8 @@
       gap: 16px;
       align-items: center;
     }
-    .tf-card:hover { border-color: var(--accent); background: var(--surface2); }
-    .tf-card.active { border-color: var(--accent); }
+    .tf-card:hover { border-color: var(--solar-orange); background: var(--surface2); }
+    .tf-card.active { border-color: var(--solar-orange); }
 
     .tf-rank {
       font-family: var(--mono);
@@ -488,8 +525,8 @@
     .flag-green { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: #6ee7b7; }
 
     .rec-box {
-      background: rgba(0,212,255,0.05);
-      border: 1px solid rgba(0,212,255,0.15);
+      background: rgba(249,115,22,0.08);
+      border: 1px solid rgba(249,115,22,0.2);
       border-radius: 10px;
       padding: 14px;
       font-size: 12px;
@@ -534,6 +571,9 @@ const state = {
   solarKw: 5.0,
   radius: 1000,
   loading: false,
+  gpsLoading: false,
+  gpsError: null,
+  locationSource: null,
   error: null,
   results: null,
   selected: null,
@@ -543,6 +583,27 @@ const state = {
 function setState(patch) {
   Object.assign(state, patch);
   render();
+}
+
+// ── Geolocation (GPS) ───────────────────────────────────────────────────────
+function useGeolocation() {
+  if (!navigator.geolocation) {
+    setState({ gpsError: 'Geolocation is not supported by your browser.', gpsLoading: false });
+    return;
+  }
+  setState({ gpsLoading: true, gpsError: null });
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      setState({ lat, lon, locationSource: 'gps', gpsLoading: false, gpsError: null });
+    },
+    (err) => {
+      const msg = err.code === 1 ? 'Location permission denied.' : err.code === 2 ? 'Location unavailable.' : 'Geolocation failed.';
+      setState({ gpsError: msg, gpsLoading: false });
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  );
 }
 
 // ── API ─────────────────────────────────────────────────────────────────────
@@ -573,17 +634,17 @@ async function runAssessment() {
   }
 }
 
-// ── Colour helpers ──────────────────────────────────────────────────────────
+// ── Colour helpers (solaric palette) ────────────────────────────────────────
 function scoreColor(s) {
-  if (s >= 80) return '#10b981';
-  if (s >= 60) return '#00d4ff';
-  if (s >= 40) return '#f59e0b';
+  if (s >= 80) return '#22c55e';
+  if (s >= 60) return '#eab308';
+  if (s >= 40) return '#f97316';
   return '#ef4444';
 }
 
 function utilColor(u) {
-  if (u <= 70) return '#10b981';
-  if (u <= 85) return '#f59e0b';
+  if (u <= 70) return '#22c55e';
+  if (u <= 85) return '#f97316';
   return '#ef4444';
 }
 
@@ -601,7 +662,7 @@ function initMap() {
 
   // User location
   L.circleMarker([lat, lon], {
-    radius: 10, fillColor: '#00d4ff', color: '#0a0e1a',
+    radius: 10, fillColor: '#eab308', color: '#0f1419',
     weight: 3, opacity: 1, fillOpacity: 0.9,
   }).addTo(map).bindPopup('<b style="font-family:monospace">Your Location</b>');
 
@@ -609,7 +670,7 @@ function initMap() {
   results.transformers.forEach(tf => {
     const col = scoreColor(tf.score);
     const m = L.circleMarker([tf.latitude, tf.longitude], {
-      radius: 9, fillColor: col, color: '#0a0e1a',
+      radius: 9, fillColor: col, color: '#0f1419',
       weight: 2, opacity: 1, fillOpacity: 0.85,
     }).addTo(map).bindPopup(`
       <div style="font-family:monospace;font-size:12px;line-height:1.6">
@@ -662,8 +723,10 @@ function utilBar(label, value) {
 function renderHome() {
   return `
     <div class="topbar">
-      <div class="topbar-logo">Solar<span>Grid</span></div>
-      <div class="topbar-tag">v2.0 · Intelligence System</div>
+      <div class="topbar-logo">
+        <span class="kinetic-kin">KIN</span><span class="kinetic-etic">ETIC</span><span class="kinetic-dot">◉</span>
+      </div>
+      <div class="topbar-tag">Solar Transformer Suitability</div>
       <div class="topbar-dot"></div>
     </div>
 
@@ -684,7 +747,7 @@ function renderHome() {
         <div style="display:flex;gap:24px;margin-top:40px;flex-wrap:wrap">
           ${['Geospatial Proximity', 'Headroom Analysis', 'ML Overload Prediction', 'Curtailment Risk', 'Explainable AI'].map(f => `
             <div style="display:flex;align-items:center;gap:8px">
-              <div style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--solar-yellow)"></div>
               <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">${f}</span>
             </div>
           `).join('')}
@@ -692,20 +755,29 @@ function renderHome() {
       </div>
 
       <div class="form-card">
-        <div class="form-section-label">Location Coordinates</div>
+        <div class="form-section-label">Location</div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+          <button class="btn-gps" onclick="useGeolocation()" ${state.gpsLoading ? 'disabled' : ''}>
+            ${state.gpsLoading ? '<div class="spinner" style="border-color:rgba(15,20,25,0.3);border-top-color:#0f1419"></div> Getting location…' : 'Use GPS'}
+          </button>
+          <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">or enter coordinates below</span>
+          ${state.locationSource === 'gps' ? '<span style="font-size:10px;color:var(--solar-green);font-family:var(--mono)">✓ Location from GPS</span>' : ''}
+        </div>
+        ${state.gpsError ? `<div class="error-banner" style="margin-bottom:12px">⚠ ${state.gpsError}</div>` : ''}
+        <div class="form-section-label" style="margin-top:8px">Latitude & Longitude</div>
         <div class="form-grid">
           <div class="field-wrap">
             <div class="field-label">Latitude</div>
             <input class="field-input" type="number" step="0.0001"
               value="${state.lat}"
-              onchange="setState({lat: parseFloat(this.value)})"
+              onchange="setState({lat: parseFloat(this.value) || 6.849, locationSource: null})"
               placeholder="6.849" />
           </div>
           <div class="field-wrap">
             <div class="field-label">Longitude</div>
             <input class="field-input" type="number" step="0.0001"
               value="${state.lon}"
-              onchange="setState({lon: parseFloat(this.value)})"
+              onchange="setState({lon: parseFloat(this.value) || 79.9247, locationSource: null})"
               placeholder="79.9247" />
           </div>
         </div>
@@ -749,7 +821,9 @@ function renderResults() {
 
   return `
     <div class="topbar">
-      <div class="topbar-logo">Solar<span>Grid</span></div>
+      <div class="topbar-logo">
+        <span class="kinetic-kin">KIN</span><span class="kinetic-etic">ETIC</span><span class="kinetic-dot">◉</span>
+      </div>
       <div class="topbar-tag">Assessment Results</div>
       <div class="topbar-dot"></div>
     </div>
@@ -795,11 +869,11 @@ function renderResults() {
         <div class="map-card-header">
           <span class="map-card-title mono">TRANSFORMER MAP</span>
           <div class="map-legend">
-            <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>IDEAL</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#00d4ff"></div>GOOD</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>FAIR</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>IDEAL</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#eab308"></div>GOOD</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div>FAIR</div>
             <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>POOR</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#00d4ff;border:2px solid #0a0e1a"></div>YOU</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#eab308;border:2px solid #0f1419"></div>YOU</div>
           </div>
         </div>
         <div id="resultsMap"></div>
@@ -869,7 +943,7 @@ function renderTFCard(tf) {
       <div class="tf-badge">
         ${scoreRing(tf.score)}
         <div class="score-label" style="color:${col}">${tf.suitabilityLabel}</div>
-        <div style="font-size:10px;color:${tf.canSupport ? '#10b981':'#ef4444'};font-family:var(--mono);margin-top:2px">
+        <div style="font-size:10px;color:${tf.canSupport ? 'var(--solar-green)':'var(--solar-red)'};font-family:var(--mono);margin-top:2px">
           ${tf.canSupport ? '✓ OK' : '✗ NO'}
         </div>
       </div>
@@ -890,17 +964,17 @@ function renderDetailPanel(tf) {
 
     <!-- Sub-scores -->
     <div class="score-sub-grid">
-      <div class="score-sub">
+        <div class="score-sub">
         <div class="score-sub-lbl">HEADROOM</div>
-        <div class="score-sub-val" style="color:var(--accent)">${tf.headroomScore.toFixed(0)}</div>
+        <div class="score-sub-val" style="color:var(--solar-orange)">${tf.headroomScore.toFixed(0)}</div>
       </div>
       <div class="score-sub">
         <div class="score-sub-lbl">DISTANCE</div>
-        <div class="score-sub-val" style="color:var(--accent)">${tf.distanceScore.toFixed(0)}</div>
+        <div class="score-sub-val" style="color:var(--solar-yellow)">${tf.distanceScore.toFixed(0)}</div>
       </div>
       <div class="score-sub">
         <div class="score-sub-lbl">STABILITY</div>
-        <div class="score-sub-val" style="color:var(--accent)">${tf.stabilityScore.toFixed(0)}</div>
+        <div class="score-sub-val" style="color:var(--solar-green)">${tf.stabilityScore.toFixed(0)}</div>
       </div>
     </div>
 
@@ -908,11 +982,11 @@ function renderDetailPanel(tf) {
     <div class="detail-row">
       <div class="detail-metric">
         <div class="detail-metric-lbl">RULE SCORE</div>
-        <div class="detail-metric-val" style="color:#7c3aed">${tf.ruleBasedScore.toFixed(1)}</div>
+        <div class="detail-metric-val" style="color:var(--solar-orange)">${tf.ruleBasedScore.toFixed(1)}</div>
       </div>
       <div class="detail-metric">
         <div class="detail-metric-lbl">ML SCORE</div>
-        <div class="detail-metric-val" style="color:#00d4ff">${tf.mlScore.toFixed(1)}</div>
+        <div class="detail-metric-val" style="color:var(--solar-yellow)">${tf.mlScore.toFixed(1)}</div>
       </div>
     </div>
 
@@ -987,19 +1061,19 @@ function buildChart() {
         {
           label: 'Headroom',
           data: top5.map(t => t.headroomScore),
-          backgroundColor: '#7c3aed',
+          backgroundColor: '#f97316',
           borderRadius: 3,
         },
         {
           label: 'Distance',
           data: top5.map(t => t.distanceScore),
-          backgroundColor: '#00d4ff',
+          backgroundColor: '#eab308',
           borderRadius: 3,
         },
         {
           label: 'Stability',
           data: top5.map(t => t.stabilityScore),
-          backgroundColor: '#10b981',
+          backgroundColor: '#22c55e',
           borderRadius: 3,
         },
       ],
