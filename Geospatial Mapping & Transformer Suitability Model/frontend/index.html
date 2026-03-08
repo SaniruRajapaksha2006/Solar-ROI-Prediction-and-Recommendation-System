@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kinetic — Solar Transformer Suitability</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230f1419'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23f97316'/%3E%3Ccircle cx='16' cy='8' r='2' fill='%23eab308'/%3E%3Ccircle cx='16' cy='24' r='2' fill='%23eab308'/%3E%3Ccircle cx='8' cy='16' r='2' fill='%23eab308'/%3E%3Ccircle cx='24' cy='16' r='2' fill='%23eab308'/%3E%3C/svg%3E" type="image/svg+xml" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23fafcf9' stroke='%23e2e8dc' stroke-width='1'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23f97316'/%3E%3Ccircle cx='16' cy='8' r='2' fill='%23eab308'/%3E%3Ccircle cx='16' cy='24' r='2' fill='%23eab308'/%3E%3Ccircle cx='8' cy='16' r='2' fill='%23eab308'/%3E%3Ccircle cx='24' cy='16' r='2' fill='%23eab308'/%3E%3C/svg%3E" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -236,7 +236,7 @@
       margin-top: 8px;
       padding: 16px;
       background: linear-gradient(135deg, var(--solar-orange), var(--solar-yellow));
-      color: #0f1419;
+      color: #1a1f18;
       border: none;
       border-radius: 10px;
       font-family: var(--mono);
@@ -255,12 +255,12 @@
     .btn-assess:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .error-banner {
-      background: rgba(239,68,68,0.1);
-      border: 1px solid rgba(239,68,68,0.3);
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.35);
       border-radius: 8px;
       padding: 12px 14px;
       font-size: 13px;
-      color: #fca5a5;
+      color: #b91c1c;
       margin-top: 12px;
       font-family: var(--mono);
     }
@@ -268,8 +268,8 @@
     /* ── Spinner ────────────────────────────────────────────────────────── */
     .spinner {
       width: 16px; height: 16px;
-      border: 2px solid rgba(10,14,26,0.3);
-      border-top-color: #0a0e1a;
+      border: 2px solid rgba(26,31,24,0.2);
+      border-top-color: #1a1f18;
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
     }
@@ -317,19 +317,21 @@
       padding: 20px;
       position: relative;
       overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
     }
     .stat-tile::after {
       content: '';
       position: absolute;
-      bottom: 0; left: 0; right: 0; height: 2px;
+      bottom: 0; left: 0; right: 0; height: 3px;
       background: linear-gradient(90deg, var(--solar-red), var(--solar-orange), var(--solar-yellow), var(--solar-green));
+      border-radius: 0 0 12px 12px;
     }
 
     .stat-tile-val {
       font-family: var(--mono);
       font-size: 28px;
       font-weight: 700;
-      color: var(--solar-yellow);
+      color: var(--solar-orange);
       line-height: 1;
     }
     .stat-tile-val.green { color: var(--green); }
@@ -360,6 +362,7 @@
       border-radius: 16px;
       overflow: hidden;
       margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
     }
     .map-card-header {
       padding: 16px 20px;
@@ -393,14 +396,14 @@
       padding: 18px 20px;
       margin-bottom: 10px;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
       display: grid;
       grid-template-columns: 42px 1fr auto;
       gap: 16px;
       align-items: center;
     }
-    .tf-card:hover { border-color: var(--solar-orange); background: var(--surface2); }
-    .tf-card.active { border-color: var(--solar-orange); }
+    .tf-card:hover { border-color: var(--solar-orange); background: rgba(249,115,22,0.06); box-shadow: 0 2px 12px rgba(249,115,22,0.15); }
+    .tf-card.active { border-color: var(--solar-orange); background: rgba(249,115,22,0.1); box-shadow: 0 2px 12px rgba(249,115,22,0.2); }
 
     .tf-rank {
       font-family: var(--mono);
@@ -455,6 +458,7 @@
       top: 80px;
       max-height: calc(100vh - 100px);
       overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
     }
 
     .detail-empty {
@@ -468,8 +472,8 @@
     .detail-cluster { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
 
     .detail-score-big {
-      background: var(--surface2);
-      border: 1px solid var(--border);
+      background: rgba(234,179,8,0.1);
+      border: 1px solid rgba(234,179,8,0.3);
       border-radius: 12px;
       padding: 16px;
       text-align: center;
@@ -491,7 +495,7 @@
     }
 
     .detail-metric {
-      background: var(--surface2);
+      background: #ffffff;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 12px;
@@ -503,7 +507,7 @@
     .util-bar-wrap { margin-bottom: 16px; }
     .util-bar-header { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono); color: var(--muted); margin-bottom: 6px; }
     .util-bar-track {
-      height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden;
+      height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
     }
     .util-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
 
@@ -511,7 +515,7 @@
       display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 16px;
     }
     .score-sub {
-      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      background: #ffffff; border: 1px solid var(--border); border-radius: 8px;
       padding: 10px; text-align: center;
     }
     .score-sub-lbl { font-size: 9px; color: var(--muted); font-family: var(--mono); letter-spacing: 0.08em; }
@@ -521,17 +525,17 @@
       border-radius: 6px; padding: 10px 12px; font-size: 12px; font-family: var(--mono);
       display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
     }
-    .flag-red   { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.25);  color: #fca5a5; }
-    .flag-green { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: #6ee7b7; }
+    .flag-red   { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.35);  color: #b91c1c; }
+    .flag-green { background: rgba(34,197,94,0.12);  border: 1px solid rgba(34,197,94,0.35);  color: #15803d; }
 
     .rec-box {
-      background: rgba(249,115,22,0.08);
-      border: 1px solid rgba(249,115,22,0.2);
+      background: rgba(249,115,22,0.1);
+      border: 1px solid rgba(249,115,22,0.3);
       border-radius: 10px;
       padding: 14px;
       font-size: 12px;
       line-height: 1.6;
-      color: #94a3b8;
+      color: var(--text);
     }
 
     /* ── Chart canvas ───────────────────────────────────────────────────── */
@@ -541,6 +545,7 @@
       border-radius: 16px;
       padding: 20px;
       margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
     }
     .chart-card-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; margin-bottom: 16px; }
 
@@ -655,22 +660,22 @@ function initMap() {
   const map = L.map('resultsMap', { zoomControl: true }).setView([lat, lon], 14);
   state.map = map;
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '© OpenStreetMap, © CARTO',
     maxZoom: 19,
   }).addTo(map);
 
   // User location
   L.circleMarker([lat, lon], {
-    radius: 10, fillColor: '#eab308', color: '#0f1419',
-    weight: 3, opacity: 1, fillOpacity: 0.9,
+    radius: 10, fillColor: '#eab308', color: '#1a1f18',
+    weight: 2, opacity: 1, fillOpacity: 0.9,
   }).addTo(map).bindPopup('<b style="font-family:monospace">Your Location</b>');
 
   const markers = [];
   results.transformers.forEach(tf => {
     const col = scoreColor(tf.score);
     const m = L.circleMarker([tf.latitude, tf.longitude], {
-      radius: 9, fillColor: col, color: '#0f1419',
+      radius: 9, fillColor: col, color: '#1a1f18',
       weight: 2, opacity: 1, fillOpacity: 0.85,
     }).addTo(map).bindPopup(`
       <div style="font-family:monospace;font-size:12px;line-height:1.6">
@@ -699,7 +704,7 @@ function scoreRing(score) {
   return `
     <div class="score-ring">
       <svg viewBox="0 0 52 52" width="52" height="52">
-        <circle cx="26" cy="26" r="${r}" fill="none" stroke="#1c2539" stroke-width="5"/>
+        <circle cx="26" cy="26" r="${r}" fill="none" stroke="#e2e8dc" stroke-width="5"/>
         <circle cx="26" cy="26" r="${r}" fill="none" stroke="${col}" stroke-width="5"
           stroke-dasharray="${dash} ${circ - dash}" stroke-linecap="round"/>
       </svg>
@@ -744,28 +749,30 @@ function renderHome() {
           with explainable recommendations.
         </p>
 
-        <div style="display:flex;gap:24px;margin-top:40px;flex-wrap:wrap">
-          ${['Geospatial Proximity', 'Headroom Analysis', 'ML Overload Prediction', 'Curtailment Risk', 'Explainable AI'].map(f => `
-            <div style="display:flex;align-items:center;gap:8px">
-              <div style="width:6px;height:6px;border-radius:50%;background:var(--solar-yellow)"></div>
-              <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">${f}</span>
-            </div>
-          `).join('')}
+        <div style="display:flex;gap:12px;margin-top:40px;flex-wrap:wrap">
+          ${[
+            { t: 'Geospatial Proximity', c: 'highlight-orange' },
+            { t: 'Headroom Analysis', c: 'highlight-yellow' },
+            { t: 'ML Overload Prediction', c: 'highlight-green' },
+            { t: 'Curtailment Risk', c: 'highlight-red' },
+            { t: 'Explainable AI', c: 'highlight-orange' }
+          ].map(({t,c}) => `<div class="${c}" style="padding:8px 14px;font-size:12px;font-family:var(--mono);color:var(--text)">${t}</div>`).join('')}
         </div>
       </div>
 
       <div class="form-card">
         <div class="form-section-label">Location</div>
-        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
-          <button class="btn-gps" onclick="useGeolocation()" ${state.gpsLoading ? 'disabled' : ''}>
-            ${state.gpsLoading ? '<div class="spinner" style="border-color:rgba(15,20,25,0.3);border-top-color:#0f1419"></div> Getting location…' : 'Use GPS'}
-          </button>
-          <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">or enter coordinates below</span>
-          ${state.locationSource === 'gps' ? '<span style="font-size:10px;color:var(--solar-green);font-family:var(--mono)">✓ Location from GPS</span>' : ''}
-        </div>
-        ${state.gpsError ? `<div class="error-banner" style="margin-bottom:12px">⚠ ${state.gpsError}</div>` : ''}
-        <div class="form-section-label" style="margin-top:8px">Latitude & Longitude</div>
-        <div class="form-grid">
+        <div class="highlight-orange" style="padding:16px;margin-bottom:16px">
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <button class="btn-gps" onclick="useGeolocation()" ${state.gpsLoading ? 'disabled' : ''}>
+              ${state.gpsLoading ? '<div class="spinner" style="border-color:rgba(255,255,255,0.5);border-top-color:#ffffff"></div> Getting location…' : '📍 Use GPS'}
+            </button>
+            <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">or enter coordinates below</span>
+            ${state.locationSource === 'gps' ? '<span class="highlight-green" style="font-size:10px;padding:4px 10px;font-family:var(--mono);font-weight:600;color:var(--solar-green)">✓ Location from GPS</span>' : ''}
+          </div>
+          ${state.gpsError ? `<div class="error-banner highlight-red" style="margin-bottom:0">⚠ ${state.gpsError}</div>` : ''}
+          <div class="form-section-label" style="margin-top:8px;margin-bottom:8px">Latitude & Longitude</div>
+          <div class="form-grid">
           <div class="field-wrap">
             <div class="field-label">Latitude</div>
             <input class="field-input" type="number" step="0.0001"
@@ -780,10 +787,12 @@ function renderHome() {
               onchange="setState({lon: parseFloat(this.value) || 79.9247, locationSource: null})"
               placeholder="79.9247" />
           </div>
+          </div>
         </div>
 
         <div class="divider"></div>
         <div class="form-section-label">Solar Installation</div>
+        <div class="highlight-yellow" style="padding:16px;margin-bottom:0">
         <div class="form-grid">
           <div class="field-wrap">
             <div class="field-label">Capacity (kW)</div>
@@ -798,8 +807,9 @@ function renderHome() {
               onchange="setState({radius: parseFloat(this.value)})" />
           </div>
         </div>
+        </div>
 
-        ${state.error ? `<div class="error-banner">⚠ ${state.error}</div>` : ''}
+        ${state.error ? `<div class="error-banner highlight-red">⚠ ${state.error}</div>` : ''}
 
         <button class="btn-assess" onclick="runAssessment()" ${state.loading ? 'disabled' : ''}>
           ${state.loading
@@ -873,7 +883,7 @@ function renderResults() {
             <div class="legend-item"><div class="legend-dot" style="background:#eab308"></div>GOOD</div>
             <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div>FAIR</div>
             <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>POOR</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#eab308;border:2px solid #0f1419"></div>YOU</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#eab308;border:2px solid #1a1f18"></div>YOU</div>
           </div>
         </div>
         <div id="resultsMap"></div>
@@ -917,7 +927,7 @@ function renderTFCard(tf) {
         <div style="display:flex;align-items:center;gap:10px">
           <span class="tf-code">${tf.code}</span>
           <span class="dist-pill">${tf.distance.toFixed(0)} m</span>
-          ${tf.curtailmentRisk ? `<span class="dist-pill" style="border-color:rgba(239,68,68,0.4);color:#fca5a5">⚡ CURTAIL</span>` : ''}
+          ${tf.curtailmentRisk ? `<span class="dist-pill highlight-red" style="border-color:rgba(239,68,68,0.5);color:#b91c1c;padding:4px 10px">⚡ CURTAIL</span>` : ''}
         </div>
         <div class="tf-cluster">${tf.cluster}</div>
         <div class="tf-metrics">
@@ -1082,18 +1092,18 @@ function buildChart() {
       responsive: true,
       maintainAspectRatio: true,
       plugins: {
-        legend: { labels: { color: '#64748b', font: { family: 'Space Mono', size: 10 } } },
+        legend: { labels: { color: '#5a6b52', font: { family: 'Space Mono', size: 10 } } },
       },
       scales: {
         x: {
           stacked: false,
-          ticks: { color: '#64748b', font: { family: 'Space Mono', size: 10 } },
-          grid: { color: '#1f2d45' },
+          ticks: { color: '#5a6b52', font: { family: 'Space Mono', size: 10 } },
+          grid: { color: '#e2e8dc' },
         },
         y: {
           max: 100,
-          ticks: { color: '#64748b', font: { family: 'Space Mono', size: 10 } },
-          grid: { color: '#1f2d45' },
+          ticks: { color: '#5a6b52', font: { family: 'Space Mono', size: 10 } },
+          grid: { color: '#e2e8dc' },
         },
       },
     },
