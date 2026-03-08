@@ -172,8 +172,7 @@ def feature_importance():
             'features'   : importance,
             'explanation': (
                 'Feature importance (Random Forest) indicates which transformer '
-                'attributes most influence suitability predictions.'
-            ),
+                'attributes most influence suitability predictions.'),
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
