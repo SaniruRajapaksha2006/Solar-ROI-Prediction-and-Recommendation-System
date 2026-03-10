@@ -2,7 +2,7 @@
 # config.yaml — Solar ROI Pipeline Configuration
 #
 # Single source of truth for all constants used across:
-#   data_pipeline.py, feature_engineering.py, predict.py,
+#   data_pipeline.py, feature_engineering.py, predict11.py,
 #   fetch_future_weather.py, utils/nasa_power.py
 # ═══════════════════════════════════════════════════════════════
 
@@ -22,8 +22,8 @@ location:
 # ── Data Paths ──────────────────────────────────────────────────
 paths:
   ceb_dataset:   "processed/MASTER_DATASET_ALL_10TRANSFORMERS.csv"
-  weather_cache: "solar_forecasting/data/raw/data_2025.csv"
-  processed_dir: "solar_forecasting/data/processed"
+  weather_cache: "data/raw/data_2025.csv"
+  processed_dir: "data/processed"
   model:         "models/best_solar_pipeline.pkl"
 
   save_intermediates: false
@@ -64,13 +64,13 @@ physics:
 # ── Pipeline: Outlier Detection ─────────────────────────────────
 outlier_detection:
   iqr_threshold:     1.5
-  target_column:     "EXPORT_kWh"
+  target_column:     "Total_Generation_kWh"
 
 
 # ── Pipeline: Feature Selection ─────────────────────────────────
 feature_selection:
   correlation_threshold: 0.05
-  target_column:         "EXPORT_kWh"
+  target_column:         "Total_Generation_kWh"
   # Columns to drop before modelling (non-informative or redundant)
   drop_columns:
     - TRANSFORMER_CODE
@@ -100,4 +100,5 @@ residential:
 # ── ROI / Financial Constants ────────────────────────────────────
 roi:
   net_plus_tariff_lkr:  37.00     # LKR per kWh (Net Plus, PUCSL 2025)
+  cost_per_kw_lkr: 180000    # LKR per kW installed (market estimate)
   mae_kwh_per_kw:       18.0      # kWh/kW — model uncertainty margin

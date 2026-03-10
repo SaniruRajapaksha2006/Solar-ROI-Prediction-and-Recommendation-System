@@ -46,7 +46,7 @@ class OutlierDetector:
         print("-" * 60)
 
         # Calculate average export per account
-        account_avg = df.groupby('ACCOUNT_NO')['EXPORT_kWh'].mean()
+        account_avg = df.groupby('ACCOUNT_NO')['Total_Generation_kWh'].mean()
 
         # Find accounts to remove
         high_export_accounts = account_avg[account_avg > max_export].index.tolist()
@@ -72,7 +72,7 @@ class OutlierDetector:
         print("-" * 60)
         return df_clean
 
-    def detect_monthly_outliers(self, df, column='EXPORT_kWh', threshold=1.5):
+    def detect_monthly_outliers(self, df, column='Total_Generation_kWh', threshold=1.5):
         print(f"\nDetecting outliers in {column} by MONTH...")
         print("-" * 60)
 

@@ -6,15 +6,6 @@ Pipeline:
 4. Hyperparameter Tune: GroupKFold CV respecting household boundaries
 5. Overfitting Check : Compare CV-MAE vs Test-MAE for each model
 6. Save              : Export best pipeline (predicts Efficiency = kWh/kW)
-
-Key changes from v1:
-  - target='Efficiency' (EXPORT_kWh / INV_CAPACITY) — normalises for system size
-  - GroupKFold replaces plain KFold in GridSearchCV — no household data leakage
-  - max_iter added to Lasso and SVR to suppress convergence warnings
-  - Physics baseline (GHI × 0.80 × Days) printed alongside ML metrics
-  - Overfitting gap (CV MAE vs Test MAE) reported for every model
-
-Uses GroupShuffleSplit to ensure accounts stay together.
 """
 from pathlib import Path
 
@@ -41,13 +32,6 @@ class SolarTrainer:
             df        : Processed DataFrame
             group_col : Column for grouping (default: ACCOUNT_NO)
             target    : Target column (default: 'Efficiency' = EXPORT_kWh / INV_CAPACITY)
-
-        Why Efficiency instead of EXPORT_kWh?
-            A 100 kWh error on a 3 kW system is catastrophic (33% error).
-            A 100 kWh error on a 10 kW system is acceptable (10% error).
-            Predicting Efficiency (kWh) normalises every house to "1 kW",
-            forcing the model to learn weather patterns rather than system size.
-            At inference: Predicted_kWh = pipeline.predict(X) * INV_CAPACITY
         """
         print("\n" + "="*70)
         print("SOLAR MODEL TRAINER")
@@ -416,8 +400,8 @@ class SolarTrainer:
         print(f"   Test MAE   : {best['Test MAE']:.4f} kWh/kW")
         print(f"   R²         : {best['R2']:.4f}")
         print(f"   Overfit    : {best['Overfit?']}")
-        print(f"\n   Example conversion: {best['Test MAE']:.4f} kWh/kW × 5 kW = "
-              f"{best['Test MAE'] * 5:.2f} kWh error for a 5 kW system")
+        # print(f"\n   Example conversion: {best['Test MAE']:.4f} kWh/kW × 5 kW = "
+        #       f"{best['Test MAE'] * 5:.2f} kWh error for a 5 kW system")
 
         return results_df
     
@@ -444,16 +428,12 @@ class SolarTrainer:
         print(f"  Model   : {model_name}")
         print(f"  Target  : Efficiency (kWh/kW)")
         print(f"  Contains: StandardScaler + Trained Model")
-        print(f"\n  Inference example (predict.py):")
-        print(f"    pipeline   = joblib.load('{model_path}')")
-        print(f"    efficiency = pipeline.predict(X_new)          # kWh/kW")
-        print(f"    kwh        = efficiency * X_new['INV_CAPACITY'] # kWh")
 
 
 if __name__ == "__main__":
     # Load data
     SCRIPT_DIR = Path(__file__).resolve().parent
-    DATA_PATH  = SCRIPT_DIR / "data" / "processed" / "04_features_engineered.csv"
+    DATA_PATH  = SCRIPT_DIR / "data" / "processed" / "final.csv"
     df = pd.read_csv(DATA_PATH)
 
     df['Efficiency'] = df['EXPORT_kWh'] / df['INV_CAPACITY']
@@ -466,7 +446,7 @@ if __name__ == "__main__":
     # 1. Split by household
     X_train, X_test, y_train, y_test = trainer.get_splits(
         test_size=0.2,
-        exclude_cols=['YEAR', 'EXPORT_kWh']
+        exclude_cols=['YEAR', 'EXPORT_kWh', 'IMPORT_kWh', 'Total_Generation_kWh']
     )
 
 

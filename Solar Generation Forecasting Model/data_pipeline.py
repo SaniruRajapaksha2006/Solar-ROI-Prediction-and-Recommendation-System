@@ -7,11 +7,11 @@ Steps:
   1. Load     - CEB export data + NASA POWER weather
   2. Merge    - Join on Month
   3. Impute   - Fill missing GHI months with historical averages
-  4. Outliers - IQR-based removal on EXPORT_kWh
+  4. Outliers - IQR-based removal on Total_Generation_kWh
   5. Features - Engineer Temp_Efficiency, Cloud_Factor, Physics_Pred, etc.
   6. Select   - Drop non-informative / redundant columns
   7. Filter   - Remove commercial accounts (>20 kW)
-  8. Target   - Create Efficiency = EXPORT_kWh / INV_CAPACITY
+  8. Target   - Create Efficiency = Total_Generation_kWh / INV_CAPACITY
   9. Save     - Write final.csv ready for model_trainer.py
 """
 
@@ -134,7 +134,7 @@ def main():
     print("\nSTEP 7 - EFFICIENCY TARGET")
     print("-" * 40)
 
-    df["Efficiency"] = (df["EXPORT_kWh"] / df["INV_CAPACITY"]).round(4)
+    df["Efficiency"] = (df["Total_Generation_kWh"] / df["INV_CAPACITY"]).round(4)
     print(f"  Efficiency (kWh/kW)  mean={df['Efficiency'].mean():.2f}  "
           f"min={df['Efficiency'].min():.2f}  max={df['Efficiency'].max():.2f}")
 

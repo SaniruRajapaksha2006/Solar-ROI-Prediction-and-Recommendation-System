@@ -23,7 +23,7 @@ def load_config(path: str | Path = None) -> dict:
 
 def get_roi_constants() -> dict[str, Any]:
     """
-    Used by predict.py and ROI calculation.
+    Used by predict11.py and ROI calculation.
 
     Returns:
         {
