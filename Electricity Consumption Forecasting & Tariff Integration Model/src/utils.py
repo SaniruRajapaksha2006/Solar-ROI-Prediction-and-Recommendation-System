@@ -56,3 +56,16 @@ def load_json(filepath: str) -> Dict:
         data = json.load(f)
 
     return data
+
+def save_pickle(data: Any, filepath: str) -> None:
+    Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+    with open(filepath, 'wb') as f:
+        pickle.dump(data, f)
+    logger = logging.getLogger(__name__)
+    logger.info(f"Saved pickle to {filepath}")
+
+
+def load_pickle(filepath: str) -> Any:
+    with open(filepath, 'rb') as f:
+        data = pickle.load(f)
+    return data
