@@ -9,3 +9,13 @@ wheels/
 # Virtual environments
 .venv
 .idea
+
+# Data files
+raw/*
+!raw/.gitkeep
+processed/*
+!processed/.gitkeep
+*.csv
+*.xlsx
+*.xls
+*.parquet
