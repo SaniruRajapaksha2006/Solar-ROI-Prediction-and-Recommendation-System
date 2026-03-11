@@ -219,3 +219,31 @@ def log_execution_time(func):
         logger.info(f"{func.__name__} executed in {elapsed:.2f} seconds")
         return result
     return wrapper
+
+def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> float:
+    #Safe division with default value
+    return numerator / denominator if denominator != 0 else default
+
+def calculate_mae(actual: np.ndarray, predicted: np.ndarray) -> float:
+    return float(np.mean(np.abs(actual - predicted)))
+
+def calculate_rmse(actual: np.ndarray, predicted: np.ndarray) -> float:
+    return float(np.sqrt(np.mean((actual - predicted) ** 2)))
+
+def calculate_mape(actual: np.ndarray, predicted: np.ndarray) -> float:
+    mask = actual > 0
+    if not np.any(mask):
+        return 0.0
+    return float(np.mean(np.abs((actual[mask] - predicted[mask]) / actual[mask])) * 100)
+
+def calculate_mase(actual: np.ndarray, predicted: np.ndarray,
+                   naive_errors: Optional[np.ndarray] = None) -> float:
+    if naive_errors is None:
+        # Use seasonal naive (same month last year) as baseline
+        naive_errors = np.abs(actual[12:] - actual[:-12]) if len(actual) > 12 else np.abs(np.diff(actual))
+
+    mae = calculate_mae(actual, predicted)
+    naive_mae = np.mean(naive_errors) if len(naive_errors) > 0 else 1.0
+
+    return mae / naive_mae if naive_mae > 0 else 0.0
+
