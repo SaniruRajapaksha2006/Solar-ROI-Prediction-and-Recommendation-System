@@ -247,3 +247,17 @@ def calculate_mase(actual: np.ndarray, predicted: np.ndarray,
 
     return mae / naive_mae if naive_mae > 0 else 0.0
 
+def ensure_dir(directory: Union[str, Path]) -> Path:
+    #Ensures that the directory exists
+    path = Path(directory)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+def read_csv_safe(filepath: Union[str, Path], **kwargs) -> pd.DataFrame:
+    try:
+        return pd.read_csv(filepath, **kwargs)
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error reading CSV {filepath}: {e}")
+        raise
+
