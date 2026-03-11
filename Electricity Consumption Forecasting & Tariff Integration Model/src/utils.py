@@ -176,3 +176,46 @@ def calculate_percentage_change(old_value: float, new_value: float) -> float:
 def get_sri_lanka_holiday_months() -> List[int]:
     # Thai Pongal, Avurudu, Vesak, Christmas
     return [1, 4, 5, 12]
+
+def create_results_directory(base_path: str = "results") -> Path:
+    #Create results directory with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_dir = Path(base_path) / timestamp
+    results_dir.mkdir(parents=True, exist_ok=True)
+    return results_dir
+
+
+def create_cache_key(data: Dict) -> str:
+    #Create cache key from dictionary
+    data_str = json.dumps(data, sort_keys=True, default=str)
+    return hashlib.md5(data_str.encode()).hexdigest()
+
+
+class Timer:
+    #Context manager for timing code execution
+
+    def __init__(self, name: str = "Operation"):
+        self.name = name
+        self.start = None
+        self.elapsed = None
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.elapsed = time.time() - self.start
+        logger = logging.getLogger(__name__)
+        logger.info(f"{self.name} completed in {self.elapsed:.2f} seconds")
+
+
+def log_execution_time(func):
+    #To log function execution time
+    def wrapper(*args, **kwargs):
+        logger = logging.getLogger(__name__)
+        start = time.time()
+        result = func(*args, **kwargs)
+        elapsed = time.time() - start
+        logger.info(f"{func.__name__} executed in {elapsed:.2f} seconds")
+        return result
+    return wrapper
