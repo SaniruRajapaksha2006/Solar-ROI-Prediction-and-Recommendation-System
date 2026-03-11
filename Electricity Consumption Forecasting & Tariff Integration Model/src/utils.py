@@ -160,3 +160,19 @@ def get_month_name(month_number: int) -> str:
         'July', 'August', 'September', 'October', 'November', 'December'
     ]
     return month_names[month_number - 1] if 1 <= month_number <= 12 else f"Month {month_number}"
+
+def create_timestamp() -> str:
+    #Create ISO format timestamp
+    return datetime.now().isoformat()
+
+
+def calculate_percentage_change(old_value: float, new_value: float) -> float:
+    #Calculate percentage change
+    if old_value == 0:
+        return 0
+    return ((new_value - old_value) / old_value) * 100
+
+
+def get_sri_lanka_holiday_months() -> List[int]:
+    # Thai Pongal, Avurudu, Vesak, Christmas
+    return [1, 4, 5, 12]
