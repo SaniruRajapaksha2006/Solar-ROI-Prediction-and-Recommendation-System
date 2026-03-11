@@ -149,3 +149,124 @@ class DataQualityMonitor:
         logger.info(f"Data quality score: {score:.2%} ({len(issues)} issues)")
 
         return report
+
+    def _check_seasonal_consistency(self, df: pd.DataFrame) -> float:
+        #Check if data follows expected seasonal patterns
+
+        if 'MONTH' not in df.columns or 'NET_CONSUMPTION_kWh' not in df.columns:
+            return 0.5
+
+        # Calculate monthly averages
+        monthly_avg = df.groupby('MONTH')['NET_CONSUMPTION_kWh'].mean()
+
+        # Expected peak months in Sri Lanka (April, October)
+        april_rank = monthly_avg.rank(ascending=False)[4] if 4 in monthly_avg.index else 6
+        oct_rank = monthly_avg.rank(ascending=False)[10] if 10 in monthly_avg.index else 6
+
+        # Expected low months (July, August)
+        july_rank = monthly_avg.rank(ascending=True)[7] if 7 in monthly_avg.index else 6
+        aug_rank = monthly_avg.rank(ascending=True)[8] if 8 in monthly_avg.index else 6
+
+        # Calculate score (lower rank = better)
+        peak_score = ((13 - april_rank) + (13 - oct_rank)) / 24
+        low_score = ((13 - july_rank) + (13 - aug_rank)) / 24
+
+        return (peak_score + low_score) / 2
+
+    def _check_completeness(self, df: pd.DataFrame) -> float:
+        #Check data completeness by household
+
+        if 'ACCOUNT_NO' not in df.columns or 'MONTH' not in df.columns:
+            return 0.5
+
+        # Check if households have all 12 months
+        completeness_by_account = df.groupby('ACCOUNT_NO')['MONTH'].nunique()
+        households_with_all_months = (completeness_by_account == 12).sum()
+
+        if len(completeness_by_account) > 0:
+            return households_with_all_months / len(completeness_by_account)
+        return 0.0
+
+    def _log_issues(self, report: DataQualityReport):
+        #Log quality issues for tracking
+        issue_entry = {
+            'timestamp': report.timestamp,
+            'score': report.overall_score,
+            'issues': report.quality_issues
+        }
+        self.issues_log.append(issue_entry)
+
+    def get_quality_trend(self) -> Dict:
+        #Get quality trend over time
+
+        if len(self.quality_history) < 2:
+            return {'trend': 'insufficient_data'}
+
+        scores = [q['overall_score'] for q in self.quality_history]
+        timestamps = [q['timestamp'] for q in self.quality_history]
+
+        # Calculate trend
+        from scipy import stats
+        x = list(range(len(scores)))
+        slope, _, r_value, p_value, _ = stats.linregress(x, scores)
+
+        return {
+            'trend': 'improving' if slope > 0.01 else 'degrading' if slope < -0.01 else 'stable',
+            'slope': float(slope),
+            'current_score': scores[-1],
+            'min_score': min(scores),
+            'max_score': max(scores),
+            'volatility': float(np.std(scores))
+        }
+
+    def get_quality_summary(self) -> str:
+        if not self.issues_log:
+            return "✅ No data quality issues detected"
+
+        latest = self.issues_log[-1]
+        total_issues = len(self.issues_log)
+
+        summary = []
+        summary.append("📊 DATA QUALITY SUMMARY")
+        summary.append("=" * 50)
+        summary.append(f"Current Score: {latest['score']:.1%}")
+        summary.append(f"Total Checks: {total_issues}")
+        summary.append(f"Current Issues: {len(latest['issues'])}")
+
+        if latest['issues']:
+            summary.append("\nTop Issues:")
+            for issue in latest['issues'][:5]:
+                summary.append(f"  • {issue}")
+
+        # Get trend
+        trend = self.get_quality_trend()
+        summary.append(f"\nTrend: {trend.get('trend', 'unknown').upper()}")
+
+        return "\n".join(summary)
+
+    def get_recommendations(self) -> List[str]:
+        if not self.issues_log:
+            return ["No quality issues detected"]
+
+        latest = self.issues_log[-1]
+        recommendations = []
+
+        if latest['score'] < 0.5:
+            recommendations.append("URGENT: Major data quality issues - investigate immediately")
+
+        if 'Missing values' in str(latest['issues']):
+            recommendations.append("Address missing values through imputation or filtering")
+
+        if 'outliers' in str(latest['issues']):
+            recommendations.append("Review outlier handling - consider robust scaling")
+
+        if 'Zero consumption' in str(latest['issues']):
+            recommendations.append("Investigate zero consumption records - possible meter issues")
+
+        if 'seasonal consistency' in str(latest['issues']):
+            recommendations.append("Seasonal patterns deviate from expectations - review data source")
+
+        if not recommendations:
+            recommendations.append("Data quality acceptable - continue monitoring")
+
+        return recommendations
