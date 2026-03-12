@@ -166,3 +166,91 @@ class ElectricityDataLoader:
                 'peak_month': max(monthly_pattern.keys(), key=lambda m: monthly_pattern[m]['net_consumption']) if monthly_pattern else None
             }
         }
+
+    def get_customer_profile(self, account_no: str) -> Optional[Dict]:
+        #Get profile for a specific customer from in-memory cache
+        return self.customer_profiles.get(account_no)
+
+    def get_profiles_by_location(self, latitude: float, longitude: float,
+                                 radius_km: float = 2.0) -> List[Tuple[str, float]]:
+
+        #Get profiles within a geographic radius
+        nearby_profiles = []
+
+        for account, profile in self.customer_profiles.items():
+            distance = self._calculate_distance(
+                latitude, longitude,
+                profile['latitude'], profile['longitude']
+            )
+
+            if distance <= radius_km * 1000:
+                nearby_profiles.append((account, distance))
+
+        # Sort by distance (closest first)
+        return sorted(nearby_profiles, key=lambda x: x[1])
+
+    def get_profiles_by_tariff(self, tariff_code: str) -> List[str]:
+        # Get profiles with specific tariff
+        return [
+            account for account, profile in self.customer_profiles.items()
+            if profile['tariff'] == tariff_code
+        ]
+
+    def get_dataset_statistics(self) -> Dict:
+        #Get dataset statistics
+
+        if self.df is None:
+            return {}
+
+        stats = {
+            'total_records': len(self.df),
+            'unique_accounts': self.df[self.cols['account_no']].nunique(),
+            'unique_transformers': self.df[self.cols['transformer_code']].nunique() if self.cols[
+                                                                                           'transformer_code'] in self.df.columns else 0,
+            'date_range': {
+                'min_month': int(self.df[self.cols['month']].min()),
+                'max_month': int(self.df[self.cols['month']].max())
+            },
+            'consumption_stats': {
+                'mean': float(self.df[self.cols['net_consumption']].mean()),
+                'median': float(self.df[self.cols['net_consumption']].median()),
+                'std': float(self.df[self.cols['net_consumption']].std()),
+                'min': float(self.df[self.cols['net_consumption']].min()),
+                'max': float(self.df[self.cols['net_consumption']].max())
+            },
+            'tariff_distribution': self.df[self.cols['tariff']].value_counts().to_dict() if self.cols[
+                                                                                                'tariff'] in self.df.columns else {},
+            'solar_customers': int((self.df[self.cols['has_solar']] > 0).sum()) if self.cols[
+                                                                                       'has_solar'] in self.df.columns else 0
+        }
+
+        return stats
+
+    @staticmethod
+    def _calculate_distance(lat1: float, lon1: float,
+                            lat2: float, lon2: float) -> float:
+
+        #Calculate Haversine distance between two coordinates in meters
+
+        R = 6371000  # Earth's radius in meters
+
+        lat1_rad = math.radians(lat1)
+        lon1_rad = math.radians(lon1)
+        lat2_rad = math.radians(lat2)
+        lon2_rad = math.radians(lon2)
+
+        dlat = lat2_rad - lat1_rad
+        dlon = lon2_rad - lon1_rad
+
+        a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        return R * c
+
+    def validate_user_location(self, latitude: float, longitude: float) -> bool:
+        # Validate if user location is within Sri Lanka bounds
+
+        bounds = self.config['similarity']['sri_lanka_bounds']
+
+        return (bounds['lat_min'] <= latitude <= bounds['lat_max']) and \
+            (bounds['lon_min'] <= longitude <= bounds['lon_max'])
