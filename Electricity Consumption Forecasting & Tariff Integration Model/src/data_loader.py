@@ -116,3 +116,53 @@ class ElectricityDataLoader:
         ]
 
         logger.info(f"After cleaning: {len(self.df)} rows remaining")
+
+    def _create_customer_profiles(self):
+        # Create in-memory customer profiles from the dataframe
+        logger.info("Creating customer profiles...")
+
+        # Group by account number
+        for account in self.df[self.cols['account_no']].unique():
+            account_data = self.df[self.df[self.cols['account_no']] == account]
+            self.customer_profiles[account] = self._create_profile(account_data)
+
+        logger.info(f"Created profiles for {len(self.customer_profiles)} customers")
+
+    def _create_profile(self, account_data: pd.DataFrame) -> Dict:
+        # Create a profile for a single household
+        account_data = account_data.sort_values(self.cols['month'])
+        first_row = account_data.iloc[0]
+
+        # Create monthly pattern
+        monthly_pattern = {}
+        for _, row in account_data.iterrows():
+            month = int(row[self.cols['month']])
+            monthly_pattern[month] = {
+                'net_consumption': float(row[self.cols['net_consumption']]),
+                'import': float(row[self.cols['import_kwh']]) if self.cols['import_kwh'] in row else None,
+                'export': float(row[self.cols['export_kwh']]) if self.cols['export_kwh'] in row else 0
+            }
+
+        # Calculate annual statistics
+        net_values = [monthly_pattern[m]['net_consumption'] for m in monthly_pattern]
+
+        return {
+            'account_no': first_row[self.cols['account_no']],
+            'transformer_code': first_row.get(self.cols['transformer_code'], 'UNKNOWN'),
+            'has_solar': int(first_row.get(self.cols['has_solar'], 0)),
+            'inv_capacity': float(first_row.get('INV_CAPACITY', 0)),
+            'tariff': first_row.get(self.cols['tariff'], 'D1'),
+            'phase': first_row.get(self.cols['phase'], 'SP'),
+            'latitude': float(first_row[self.cols['customer_lat']]),
+            'longitude': float(first_row[self.cols['customer_lon']]),
+            'distance_from_tf': float(first_row.get(self.cols['distance_from_tf'], 0)),
+            'monthly_pattern': monthly_pattern,
+            'annual_stats': {
+                'total': sum(net_values),
+                'average': np.mean(net_values),
+                'std': np.std(net_values),
+                'min': min(net_values),
+                'max': max(net_values),
+                'peak_month': max(monthly_pattern.keys(), key=lambda m: monthly_pattern[m]['net_consumption']) if monthly_pattern else None
+            }
+        }
