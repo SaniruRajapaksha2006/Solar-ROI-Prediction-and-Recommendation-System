@@ -68,3 +68,51 @@ class ElectricityDataLoader:
 
         if missing_cols:
             raise ValueError(f"Missing required columns: {missing_cols}")
+
+    def _clean_data(self) -> None:
+        # Clean and preprocess the dataset
+        # Convert column names if needed
+        self.df.columns = [str(col).strip() for col in self.df.columns]
+
+        # Convert data types
+        numeric_cols = [
+            self.cols['customer_lat'],
+            self.cols['customer_lon'],
+            self.cols['net_consumption'],
+            'INV_CAPACITY'
+        ]
+
+        for col in numeric_cols:
+            if col in self.df.columns:
+                self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
+
+        # Clean string columns
+        string_cols = [
+            self.cols['account_no'],
+            self.cols['tariff'],
+            self.cols['phase']
+        ]
+
+        for col in string_cols:
+            if col in self.df.columns:
+                self.df[col] = self.df[col].astype(str).str.strip()
+
+        # Filter out invalid locations (outside Sri Lanka bounds)
+        bounds = self.config['similarity']['sri_lanka_bounds']
+        lat_mask = (self.df[self.cols['customer_lat']] >= bounds['lat_min']) & \
+                   (self.df[self.cols['customer_lat']] <= bounds['lat_max'])
+        lon_mask = (self.df[self.cols['customer_lon']] >= bounds['lon_min']) & \
+                   (self.df[self.cols['customer_lon']] <= bounds['lon_max'])
+
+        self.df = self.df[lat_mask & lon_mask].copy()
+
+        # Remove rows with missing consumption
+        self.df = self.df[self.df[self.cols['net_consumption']].notna()]
+
+        # Remove obviously erroneous values
+        self.df = self.df[
+            (self.df[self.cols['net_consumption']] >= 10) &
+            (self.df[self.cols['net_consumption']] <= 2000)
+        ]
+
+        logger.info(f"After cleaning: {len(self.df)} rows remaining")
