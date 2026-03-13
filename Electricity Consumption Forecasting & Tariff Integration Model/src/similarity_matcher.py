@@ -32,6 +32,91 @@ class SimilarityMatcher:
 
         logger.info(f"Similarity matcher initialized with weights: {self.similarity_weights}")
 
+    def find_similar_households_safe(self, user_data: Dict) -> List[Tuple[str, float]]:
+        """
+        Find households similar to the user
+        No look-ahead bias - only uses months the user has
+        """
+        logger.info(f"Finding similar households for user at {user_data['latitude']}, {user_data['longitude']}")
+
+        # Get user's last month
+        user_months = user_data.get('consumption_months', {})
+        last_user_month = max(user_months.keys()) if user_months else 12
+
+        # Create cache key
+        cache_key = self._create_cache_key(user_data)
+        if cache_key in self._similarity_cache:
+            logger.info("Returning cached similarity results")
+            return self._similarity_cache[cache_key]
+
+        # Step 1: Validate user location
+        if not self.data_loader.validate_user_location(user_data['latitude'], user_data['longitude']):
+            logger.warning(f"User location outside Sri Lanka bounds")
+            # Still proceed, but log warning
+
+        # Step 2: Get households within geographic radius
+        max_distance_km = self.config['similarity']['max_distance_km']
+        nearby_profiles = self.data_loader.get_profiles_by_location(
+            user_data['latitude'], user_data['longitude'],
+            radius_km=max_distance_km
+        )
+
+        if not nearby_profiles:
+            logger.warning(f"No households found within {max_distance_km}km radius")
+            return []
+
+        logger.info(f"Found {len(nearby_profiles)} households within {max_distance_km}km")
+
+        # Step 3: Calculate similarity scores with filtering
+        similarity_scores = []
+        filtered_count = 0
+        filtered_reasons = {'profile': 0, 'consumption': 0, 'other': 0}
+
+        for account_no, distance in nearby_profiles:
+            profile = self.data_loader.get_customer_profile(account_no)
+            if not profile:
+                continue
+
+            # Filter by profile compatibility
+            if not self._filter_by_profile_compatibility(user_data, profile):
+                filtered_count += 1
+                filtered_reasons['profile'] += 1
+                continue
+
+            # Calculate similarity score using ONLY user's months
+            score = self._calculate_similarity_score_safe(user_data, profile, distance, last_user_month)
+
+            if score >= self.config['similarity']['min_similarity_score']:
+                similarity_scores.append((account_no, score))
+            else:
+                filtered_count += 1
+                filtered_reasons['other'] += 1
+
+        # Log filtering statistics
+        if filtered_count > 0:
+            logger.info(f"Filtering statistics:")
+            logger.info(f"  • Total filtered: {filtered_count} households")
+            logger.info(f"  • Profile incompatibility: {filtered_reasons['profile']}")
+            logger.info(f"  • Low similarity score: {filtered_reasons['other']}")
+
+        # Step 4: Sort by similarity score (highest first)
+        similarity_scores.sort(key=lambda x: x[1], reverse=True)
+
+        # Step 5: Return top N similar households
+        top_n = self.config['similarity']['top_n_similar']
+        top_matches = similarity_scores[:top_n]
+
+        # Cache results
+        self._similarity_cache[cache_key] = top_matches
+
+        if top_matches:
+            logger.info(f"Found {len(top_matches)} similar households after filtering")
+            logger.info(f"Top similarity score: {top_matches[0][1]:.3f}")
+        else:
+            logger.info("No households met minimum similarity threshold")
+
+        return top_matches
+
     def _create_cache_key(self, user_data: Dict) -> str:
         """Create cache key from user data"""
         # Only use fields that affect similarity
@@ -45,11 +130,6 @@ class SimilarityMatcher:
         }
         key_str = json.dumps(key_dict, sort_keys=True)
         return hashlib.md5(key_str.encode()).hexdigest()
-
-    def clear_cache(self):
-        """Clear similarity cache"""
-        self._similarity_cache.clear()
-        logger.info("Similarity cache cleared")
 
     def _filter_by_profile_compatibility(self, user_data: Dict, profile: Dict) -> bool:
         #Filter households based on profile compatibility
@@ -270,3 +350,59 @@ class SimilarityMatcher:
             return [0.5] * len(arr)
 
         return [(x - arr_min) / (arr_max - arr_min) for x in arr]
+
+    def get_similarity_breakdown(self, user_data: Dict, account_no: str,
+                                distance: float) -> Dict[str, Any]:
+        #Get detailed similarity breakdown for a specific household
+
+        profile = self.data_loader.get_customer_profile(account_no)
+        if not profile:
+            return {}
+
+        breakdown = {
+            'geographic': {
+                'score': max(0, 1 - (distance / (self.config['similarity']['max_distance_km'] * 1000))),
+                'weight': self.similarity_weights.get('geographic', 0.25),
+                'distance_m': distance
+            },
+            'consumption_pattern': {
+                'score': self._calculate_consumption_similarity_safe(
+                user_data.get('consumption_months', {}),
+                profile['monthly_pattern'],
+                max(user_data.get('consumption_months', {}).keys()) if user_data.get('consumption_months', {}) else 12
+            ),
+            'weight': self.similarity_weights.get('consumption_pattern', 0.40)
+        },
+            'technical': {
+                'score': self._calculate_technical_similarity(user_data, profile),
+                'weight': self.similarity_weights.get('technical', 0.20)
+            },
+            'seasonal_compatibility': {
+                'score': self._calculate_seasonal_similarity_safe(user_data, profile),
+                'weight': self.similarity_weights.get('seasonal_compatibility', 0.15)
+            }
+        }
+
+        # Calculate total weighted score
+        total_score = 0
+        for category, cat_data in breakdown.items():
+            if 'score' in cat_data and 'weight' in cat_data:
+                total_score += cat_data['score'] * cat_data['weight']
+
+        breakdown['total_score'] = total_score
+        breakdown['profile_info'] = {
+            'account_no': account_no,
+            'tariff': profile['tariff'],
+            'phase': profile['phase'],
+            'has_solar': profile['has_solar'],
+            'annual_consumption': profile['annual_stats']['total'],
+            'monthly_average': profile['annual_stats']['average'],
+            'data_quality_score': self._calculate_data_quality_score(profile)
+        }
+
+        return breakdown
+
+    def clear_cache(self):
+        """Clear similarity cache"""
+        self._similarity_cache.clear()
+        logger.info("Similarity cache cleared")
