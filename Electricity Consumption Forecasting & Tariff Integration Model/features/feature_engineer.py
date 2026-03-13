@@ -180,3 +180,257 @@ class FeatureEngineer:
             features['user_trend_r2'] = r_value ** 2
 
         return features
+
+    def _prepare_lstm_input(self, features: Dict, user_data: Dict,
+                            similar_households: List, df: pd.DataFrame) -> Optional[np.ndarray]:
+        # Prepare a proper 12-month sequence for LSTM input with exactly 30 features.
+
+
+        # Get user's months
+        user_months = user_data.get('consumption_months', {})
+        if not user_months:
+            return None
+
+        # Get top similar households
+        top_similar = [acc for acc, _ in similar_households[:5]] if similar_households else []
+        if not top_similar:
+            return None
+
+        sequence = []
+
+        # Get user's average for scaling
+        user_avg = np.mean(list(user_months.values())) if user_months else 400
+
+        # User's static features
+        has_solar = float(user_data.get('has_solar', 0))
+        inv_capacity = float(user_data.get('inv_capacity', 0))
+        distance = 0.0  # User's distance to transformer (if available)
+
+        # Phase encoding
+        phase = user_data.get('phase', 'SP')
+        phase_SP = 1.0 if phase == 'SP' else 0.0
+        phase_TP = 1.0 if phase == 'TP' else 0.0
+
+        # For each month (1-12)
+        for month in range(1, 13):
+
+            # GET CONSUMPTION FOR THIS MONTH
+            if month in user_months:
+                consumption = user_months[month]
+            else:
+                # Get from similar households
+                month_values = []
+                for account in top_similar:
+                    account_data = df[df['ACCOUNT_NO'] == account]
+                    month_data = account_data[account_data['MONTH'] == month]
+                    if not month_data.empty:
+                        month_values.append(month_data['NET_CONSUMPTION_kWh'].iloc[0])
+
+                if month_values:
+                    consumption = np.median(month_values)
+                    # Scale to match user's average
+                    pattern_avg = np.mean(month_values)
+                    if pattern_avg > 0:
+                        consumption *= (user_avg / pattern_avg)
+                else:
+                    # Fallback to seasonal average
+                    seasonal_factors = self.config['features']['sri_lanka']['seasonal_factors']
+                    consumption = 400 * seasonal_factors.get(month, 1.0)
+
+            # calculate lag features
+            def get_lag(lag_months):
+                if month - lag_months >= 1:
+                    if (month - lag_months) in user_months:
+                        return user_months[month - lag_months]
+                    else:
+                        lag_values = []
+                        for account in top_similar:
+                            account_data = df[df['ACCOUNT_NO'] == account]
+                            lag_data = account_data[account_data['MONTH'] == (month - lag_months)]
+                            if not lag_data.empty:
+                                lag_values.append(lag_data['NET_CONSUMPTION_kWh'].iloc[0])
+                        return np.median(lag_values) if lag_values else consumption * 0.9
+                return consumption * 0.9
+
+            lag_1 = get_lag(1)
+            lag_2 = get_lag(2)
+            lag_3 = get_lag(3)
+            lag_6 = get_lag(6)
+            lag_12 = get_lag(12)
+
+            # calculate rolling statistics
+            def get_rolling(window, stat):
+                values = []
+                for w in range(1, window + 1):
+                    past_month = month - w
+                    if past_month >= 1:
+                        if past_month in user_months:
+                            values.append(user_months[past_month])
+                        else:
+                            for account in top_similar:
+                                account_data = df[df['ACCOUNT_NO'] == account]
+                                month_data = account_data[account_data['MONTH'] == past_month]
+                                if not month_data.empty:
+                                    values.append(month_data['NET_CONSUMPTION_kWh'].iloc[0])
+                                    break
+
+                if len(values) == 0:
+                    return consumption
+
+                if stat == 'mean':
+                    return np.mean(values)
+                elif stat == 'std':
+                    return np.std(values) if len(values) > 1 else consumption * 0.1
+                elif stat == 'min':
+                    return np.min(values)
+                elif stat == 'max':
+                    return np.max(values)
+                return consumption
+
+            rolling_mean_3 = get_rolling(3, 'mean')
+            rolling_std_3 = get_rolling(3, 'std')
+            rolling_min_3 = get_rolling(3, 'min')
+            rolling_max_3 = get_rolling(3, 'max')
+
+            rolling_mean_6 = get_rolling(6, 'mean')
+            rolling_std_6 = get_rolling(6, 'std')
+            rolling_min_6 = get_rolling(6, 'min')
+            rolling_max_6 = get_rolling(6, 'max')
+
+            rolling_mean_12 = get_rolling(12, 'mean')
+            rolling_std_12 = get_rolling(12, 'std')
+            rolling_min_12 = get_rolling(12, 'min')
+            rolling_max_12 = get_rolling(12, 'max')
+
+            # differenced features
+            diff_1 = consumption - lag_1
+            diff_12 = consumption - lag_12 if lag_12 > 0 else 0
+            pct_change_1 = (diff_1 / lag_1) * 100 if lag_1 > 0 else 0
+            pct_change_12 = (diff_12 / lag_12) * 100 if lag_12 > 0 else 0
+
+            # ratio features
+            hist_avg = np.mean([lag_1, lag_2, lag_3]) if lag_1 > 0 else consumption
+            consumption_vs_avg = consumption / hist_avg if hist_avg > 0 else 1.0
+            consumption_vs_rolling_3 = consumption / rolling_mean_3 if rolling_mean_3 > 0 else 1.0
+            consumption_vs_rolling_6 = consumption / rolling_mean_6 if rolling_mean_6 > 0 else 1.0
+            consumption_vs_rolling_12 = consumption / rolling_mean_12 if rolling_mean_12 > 0 else 1.0
+
+            # Sri Lanka season flags
+            is_wet_season = 1 if month in [5, 6, 7, 8, 9] else 0
+            is_intermediate = 1 if month in [10, 11] else 0
+
+            # final 30 features
+            month_features = [
+                is_wet_season,
+                is_intermediate,
+                lag_1,
+                lag_2,
+                lag_3,
+                lag_6,
+                lag_12,
+                rolling_mean_3,
+                rolling_std_3,
+                rolling_min_3,
+                rolling_max_3,
+                rolling_mean_6,
+                rolling_std_6,
+                rolling_min_6,
+                rolling_max_6,
+                rolling_mean_12,
+                rolling_std_12,
+                rolling_min_12,
+                rolling_max_12,
+                diff_1,
+                diff_12,
+                pct_change_1,
+                pct_change_12,
+                consumption_vs_avg,
+                consumption_vs_rolling_3,
+                consumption_vs_rolling_6,
+                consumption_vs_rolling_12,
+                inv_capacity,  # INV_CAPACITY
+                distance,  # DISTANCE_FROM_TF_M
+                phase_SP  # phase_SP
+            ]
+
+            sequence.append(month_features)
+
+        # Convert to numpy array and reshape for LSTM
+        X = np.array(sequence).reshape(1, 12, 30)
+
+        print(f"✅ Created LSTM input sequence with shape {X.shape}")
+        return X
+
+    def prepare_for_training(self, df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+        # Prepare features for model training
+
+        # Group by account
+        X_list = []
+        y_list = []
+
+        for account in df['ACCOUNT_NO'].unique():
+            account_data = df[df['ACCOUNT_NO'] == account].sort_values(['YEAR', 'MONTH'])
+
+            if len(account_data) < 24:  # Need at least 2 years
+                continue
+
+            # Create features
+            values = account_data['NET_CONSUMPTION_kWh'].values
+
+            # Create sequences
+            lookback = self.config['forecasting']['lstm']['lookback_window']
+            horizon = self.config['forecasting']['lstm']['forecast_horizon']
+
+            for i in range(len(values) - lookback - horizon):
+                X_seq = values[i:i + lookback]
+                y_seq = values[i + lookback:i + lookback + horizon]
+
+                # Add simple features (expand in production)
+                X_with_features = np.column_stack([
+                    X_seq,
+                    np.sin(2 * np.pi * np.arange(lookback) / 12),  # month sin
+                    np.cos(2 * np.pi * np.arange(lookback) / 12)  # month cos
+                ])
+
+                X_list.append(X_with_features)
+                y_list.append(y_seq)
+
+        X = np.array(X_list)
+        y = np.array(y_list)
+
+        logger.info(f"Prepared training data: X shape {X.shape}, y shape {y.shape}")
+
+        self.feature_names = [f'feature_{i}' for i in range(X.shape[2])]
+        self.is_fitted = True
+
+        return X, y
+
+    def fit_scalers(self, X_train: np.ndarray):
+        # Fit scalers on training data
+        # Reshape to 2D for scaling
+        n_samples, n_timesteps, n_features = X_train.shape
+        X_2d = X_train.reshape(-1, n_features)
+
+        # Fit consumption scaler (first feature)
+        self.scalers['consumption'].fit(X_2d[:, 0:1])
+
+        # Fit other scalers as needed
+        logger.info("Scalers fitted on training data")
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        # Transform features using fitted scalers
+        if not self.is_fitted:
+            raise ValueError("Must fit scalers before transform")
+
+        n_samples, n_timesteps, n_features = X.shape
+        X_2d = X.reshape(-1, n_features)
+        X_scaled = X_2d.copy()
+
+        # Scale consumption (first feature)
+        X_scaled[:, 0:1] = self.scalers['consumption'].transform(X_2d[:, 0:1])
+
+        return X_scaled.reshape(n_samples, n_timesteps, n_features)
+
+    def get_feature_names(self) -> List[str]:
+        # Get list of feature names
+        return self.feature_names
