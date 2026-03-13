@@ -6,7 +6,7 @@ import re
 import statistics
 import logging
 from datetime import datetime
-from typing import List
+from typing import List, Dict
 
 # Configure Professional Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -15,15 +15,13 @@ logger = logging.getLogger(__name__)
 
 class MarketDataUpdater:
     def __init__(self, json_filename: str = "market_data.json") -> None:
-        # TWEAK 1: Absolute file path to prevent "File Not Found" errors
+        # Absolute file path to prevent "File Not Found" errors
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.json_filepath = os.path.join(base_dir, json_filename)
 
-        # Centralize configuration
         self.timeout = 10
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
 
-        # Load the existing JSON database to update it
         if os.path.exists(self.json_filepath):
             with open(self.json_filepath, "r") as file:
                 self.db = json.load(file)
@@ -55,65 +53,77 @@ class MarketDataUpdater:
             logger.warning(f"API Fetch Failed: {e}. Using existing JSON data.")
 
     def scrape_reputed_vendor_prices(self) -> None:
-        logger.info("Scraping reputed solar vendors for live 5kW system prices...")
-        prices_found: List[int] = []
+        logger.info("Scraping reputed solar vendors for system prices across ALL sizes...")
+        target_sizes = [3, 5, 8, 10, 15, 20]
+        prices_found: Dict[int, List[int]] = {size: [] for size in target_sizes}
 
-        # 1. Dinapala Group
-        try:
-            url = "https://dinapalagroup.lk/product/5kw-on-grid-solar-system-with-complete-installation/"
-            res = requests.get(url, headers=self.headers, timeout=self.timeout)
-            res.raise_for_status()
-            soup = BeautifulSoup(res.text, 'html.parser')
-            price_elem = soup.find('p', class_='price')
-            if price_elem:
-                price_text = price_elem.get_text().split(".")[0]
-                price_val = int(''.join(filter(str.isdigit, price_text)))
-                if 500000 < price_val < 3000000:
-                    prices_found.append(price_val)
-                    logger.info(f"Dinapala Group: {price_val:,} LKR")
-        except Exception as e:
-            logger.warning(f"Dinapala Scraping Failed: {e}")
+        # 1. Dinapala Group (Loops through size-specific URLs)
+        for size in target_sizes:
+            try:
+                url = f"https://dinapalagroup.lk/product/{size}kw-on-grid-solar-system-with-complete-installation/"
+                res = requests.get(url, headers=self.headers, timeout=self.timeout)
+                if res.status_code == 200:  # Only parse if the page actually exists
+                    soup = BeautifulSoup(res.text, 'html.parser')
+                    price_elem = soup.find('p', class_='price')
+                    if price_elem:
+                        price_text = price_elem.get_text().split(".")[0]
+                        price_val = int(''.join(filter(str.isdigit, price_text)))
+                        if 300000 < price_val < 6000000:  # Scaled sanity check
+                            prices_found[size].append(price_val)
+                            logger.info(f"Dinapala Group ({size}kW): {price_val:,} LKR")
+            except Exception as e:
+                logger.warning(f"Dinapala Scraping Failed for {size}kW: {e}")
 
-        # 2. Solitra Power
+        # 2. Solitra Power (All sizes usually on one pricing page)
         try:
             url = "https://www.solitrapower.com/pricing/"
             res = requests.get(url, headers=self.headers, timeout=self.timeout)
             res.raise_for_status()
             soup = BeautifulSoup(res.text, 'html.parser')
             text_blocks = soup.get_text(separator=' ')
-            match = re.search(r'5kW.*?starting from.*?Rs\.?\s*([\d,]+)', text_blocks, re.IGNORECASE | re.DOTALL)
-            if match:
-                price_val = int(''.join(filter(str.isdigit, match.group(1))))
-                if 500000 < price_val < 3000000:
-                    prices_found.append(price_val)
-                    logger.info(f"Solitra Power: {price_val:,} LKR")
+
+            for size in target_sizes:
+                match = re.search(rf'{size}kW.*?starting from.*?Rs\.?\s*([\d,]+)', text_blocks,
+                                  re.IGNORECASE | re.DOTALL)
+                if match:
+                    price_val = int(''.join(filter(str.isdigit, match.group(1))))
+                    if 300000 < price_val < 6000000:
+                        prices_found[size].append(price_val)
+                        logger.info(f"Solitra Power ({size}kW): {price_val:,} LKR")
         except Exception as e:
             logger.warning(f"Solitra Scraping Failed: {e}")
 
-        # 3. Golden Rays Solar
+        # 3. Golden Rays Solar (FAQ Price Ranges)
         try:
             url = "https://goldenrayssolar.lk/faq/"
             res = requests.get(url, headers=self.headers, timeout=self.timeout)
             res.raise_for_status()
             soup = BeautifulSoup(res.text, 'html.parser')
             text_blocks = soup.get_text(separator=' ')
-            match = re.search(r'5kW system.*?LKR\s*([\d,]+)\s*[-–]\s*([\d,]+)', text_blocks, re.IGNORECASE)
-            if match:
-                price_min = int(''.join(filter(str.isdigit, match.group(1))))
-                price_max = int(''.join(filter(str.isdigit, match.group(2))))
-                avg_golden = int((price_min + price_max) / 2)
-                if 500000 < avg_golden < 3000000:
-                    prices_found.append(avg_golden)
-                    logger.info(f"Golden Rays Solar: {avg_golden:,} LKR (Average)")
+
+            for size in target_sizes:
+                match = re.search(rf'{size}kW system.*?LKR\s*([\d,]+)\s*[-–]\s*([\d,]+)', text_blocks, re.IGNORECASE)
+                if match:
+                    price_min = int(''.join(filter(str.isdigit, match.group(1))))
+                    price_max = int(''.join(filter(str.isdigit, match.group(2))))
+                    avg_golden = int((price_min + price_max) / 2)
+
+                    if 300000 < avg_golden < 6000000:
+                        prices_found[size].append(avg_golden)
+                        logger.info(f"Golden Rays Solar ({size}kW): {avg_golden:,} LKR (Average)")
         except Exception as e:
             logger.warning(f"Golden Rays Scraping Failed: {e}")
 
-        if prices_found:
-            most_likely_price = int(statistics.median(prices_found))
-            self.db["pricing_database"]["5"] = most_likely_price
-            logger.info(f"Scraping Success: Median 5kW System price is {most_likely_price:,} LKR.")
-        else:
-            logger.warning("Could not retrieve live prices. Using existing JSON data.")
+        # --- CALCULATE MEDIANS FOR ALL SIZES ---
+        logger.info("--- Aggregating Market Prices ---")
+        for size in target_sizes:
+            if prices_found[size]:
+                most_likely_price = int(statistics.median(prices_found[size]))
+                self.db["pricing_database"][str(size)] = most_likely_price
+                logger.info(
+                    f"Updated {size}kW System Median Price: {most_likely_price:,} LKR ({len(prices_found[size])} sources)")
+            else:
+                logger.warning(f"No live data found for {size}kW. Keeping existing JSON default.")
 
     def scrape_ceb_tariffs(self) -> None:
         logger.info("Checking PUCSL/CEB for official tariff updates...")
