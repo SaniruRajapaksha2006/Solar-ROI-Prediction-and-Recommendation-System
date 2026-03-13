@@ -1,162 +1,146 @@
 import numpy as np
 import pandas as pd
 import json
+import os
+import logging
+from typing import Dict, Any
+
+# Configure Professional Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 class SolarFinancialModel:
+    """
+    A stochastic financial evaluation model for residential solar PV systems in Sri Lanka.
+    Utilizes Vectorized Monte Carlo simulation to account for uncertainties in equipment degradation,
+    maintenance costs, tariff escalations, and inverter lifespan.
+    """
+
     def __init__(self):
-        # =========================================================================
-        # 1. MARKET DATA (Source: Local Vendor Analysis 2024-2026)
-        # =========================================================================
-        self.PRICING_DATABASE = {
-            3: 750000,  # 3kW Single Phase
-            5: 1050000,  # 5kW Single/Three Phase
-            8: 1450000,  # 8kW
-            10: 1800000,  # 10kW
-            15: 2600000,  # 15kW
-            20: 2900000  # 20kW
-        }
+        self.PRICING_DATABASE: Dict[int, float] = {}
+        self.VENDOR_DATABASE: list = []
+        self.BASE_IMPORT_TARIFF_LKR: float = 45.00
+        self.EXPORT_UNDER_5: float = 20.90
+        self.EXPORT_OVER_5: float = 19.61
+        self.DISCOUNT_RATE: float = 0.10
+        self.PROJECT_LIFETIME: int = 20
 
-        # =========================================================================
-        # 2. LOCAL VENDOR DATABASE (Maharagama Area)
-        # =========================================================================
-        self.VENDOR_DATABASE = [
-            {
-                "Name": "Genso Power Technologies",
-                "Location": "Maharagama",
-                "Contact": "011 2 000 000",
-                "Specialty": "Residential & Commercial Solar"
-            },
-            {
-                "Name": "Mega Solar (Pvt) Ltd",
-                "Location": "Maharagama",
-                "Contact": "011 2 111 111",
-                "Specialty": "Net Accounting & Hybrid Systems"
-            },
-            {
-                "Name": "Growatt Lanka",
-                "Location": "Maharagama",
-                "Contact": "011 2 222 222",
-                "Specialty": "Inverters & Turnkey Solar Solutions"
-            }
-        ]
+        # Load live data from the JSON "database"
+        try:
+            if os.path.exists("market_data.json"):
+                with open("market_data.json", "r") as db_file:
+                    data = json.load(db_file)
 
-        # =========================================================================
-        # 3. POLICY & TARIFF DATA (Sri Lanka CEB/PUCSL)
-        # =========================================================================
-        self.BASE_IMPORT_TARIFF_LKR = 45.00
-        self.PROJECT_LIFETIME = 20  # Years
-        self.DISCOUNT_RATE = 0.10  # 10% Discount rate for NPV
+                    self.PRICING_DATABASE = {int(k): v for k, v in data["pricing_database"].items()}
+                    self.VENDOR_DATABASE = data["vendors"]
+                    self.BASE_IMPORT_TARIFF_LKR = data["tariffs"]["base_import_tariff"]
+                    self.EXPORT_UNDER_5 = data["tariffs"]["export_tariff_under_5kw"]
+                    self.EXPORT_OVER_5 = data["tariffs"]["export_tariff_over_5kw"]
+                    self.DISCOUNT_RATE = data["tariffs"]["discount_rate"]
 
-    def get_system_cost(self, size_kw):
-        """Estimates total system cost based on size."""
-        if size_kw in self.PRICING_DATABASE:
-            return self.PRICING_DATABASE[size_kw]
-        else:
-            return size_kw * 200000
+                    logger.info("Model successfully initialized with live market data from JSON database.")
+            else:
+                raise FileNotFoundError("JSON database file not found.")
 
-    def get_export_tariff(self, size_kw):
-        """Returns the fixed export tariff based on system size"""
-        if size_kw <= 5:
-            return 20.90  # LKR per kWh for 0-5 kW
-        else:
-            return 19.61  # LKR per kWh for 5-20 kW
+        except Exception as e:
+            logger.warning(f"Database error: {e}. Falling back to safe offline market data.")
+            self.PRICING_DATABASE = {3: 750000, 5: 800000, 8: 1450000, 10: 1800000, 15: 2600000, 20: 2900000}
+            self.VENDOR_DATABASE = [
+                {"Name": "System Default Vendor", "Location": "Unknown", "Contact": "N/A", "Specialty": "N/A"}]
 
-    def calculate_financial_report(self, system_size_kw, predicted_annual_generation_kwh,
-                                   predicted_annual_consumption_kwh):
+    def get_system_cost(self, size_kw: float) -> float:
+        return self.PRICING_DATABASE.get(size_kw, size_kw * 200000.0)
+
+    def get_export_tariff(self, size_kw: float) -> float:
+        return self.EXPORT_UNDER_5 if size_kw <= 5 else self.EXPORT_OVER_5
+
+    def calculate_financial_report(self, system_size_kw: float,
+                                   predicted_annual_generation_kwh: float,
+                                   predicted_annual_consumption_kwh: float) -> Dict[str, Any]:
         """
-        MAIN COMPONENT FUNCTION
+        Executes a High-Performance Vectorized Monte Carlo simulation.
         """
+        # --- INPUT VALIDATION ---
+        if system_size_kw <= 0 or predicted_annual_generation_kwh <= 0:
+            raise ValueError("System size and generation must be greater than zero.")
+
         initial_investment_lkr = self.get_system_cost(system_size_kw)
         export_tariff_lkr = self.get_export_tariff(system_size_kw)
 
         # ---------------------------------------------------------
-        # 1. MONTE CARLO SIMULATION
+        # 1. VECTORIZED MONTE CARLO SIMULATION
         # ---------------------------------------------------------
-        n_simulations = 2000
-        sim_results = []
+        n_sims = 2000
 
-        for _ in range(n_simulations):
-            # --- Randomize Uncertain Risk Variables ---
-            degradation_rate = np.random.uniform(0.005, 0.010)
-            base_maintenance = initial_investment_lkr * 0.01
-            annual_maintenance = base_maintenance * np.random.normal(1.0, 0.2)
-            inverter_fail_year = np.random.randint(8, 13)
-            inverter_cost = initial_investment_lkr * 0.25
-            import_tariff_escalation = np.random.uniform(0.02, 0.05)
+        # Generate 2000 random variables instantly using NumPy arrays
+        degradation_rates = np.random.uniform(0.005, 0.010, n_sims)
+        annual_maintenance = (initial_investment_lkr * 0.01) * np.random.normal(1.0, 0.2, n_sims)
+        inverter_fail_year = np.random.randint(8, 13, n_sims)
+        tariff_escalation = np.random.uniform(0.02, 0.05, n_sims)
+        inverter_cost = initial_investment_lkr * 0.25
 
-            # --- Cash Flow Projection ---
-            cumulative_cash = -initial_investment_lkr
-            payback_year = self.PROJECT_LIFETIME + 1
-            paid_back = False
-            total_net_profit = 0
-            npv = -initial_investment_lkr
+        # Initialize tracking arrays for all 2000 simulations
+        cumulative_cash = np.full(n_sims, -initial_investment_lkr)
+        npv_array = np.full(n_sims, -initial_investment_lkr)
+        payback_years = np.full(n_sims, self.PROJECT_LIFETIME + 1.0)
+        paid_back = np.zeros(n_sims, dtype=bool)
+        total_net_profit = np.zeros(n_sims)
+        current_import_tariff = np.full(n_sims, self.BASE_IMPORT_TARIFF_LKR)
 
-            current_import_tariff = self.BASE_IMPORT_TARIFF_LKR
+        # Time Loop (Running 2000 scenarios simultaneously per year)
+        for year in range(1, self.PROJECT_LIFETIME + 1):
+            gen_for_year = predicted_annual_generation_kwh * ((1 - degradation_rates) ** (year - 1))
 
-            for year in range(1, self.PROJECT_LIFETIME + 1):
-                gen_for_year = predicted_annual_generation_kwh * ((1 - degradation_rate) ** (year - 1))
+            # Vectorized Net Accounting
+            savings = np.where(gen_for_year >= predicted_annual_consumption_kwh,
+                               predicted_annual_consumption_kwh * current_import_tariff,
+                               gen_for_year * current_import_tariff)
 
-                # Net Accounting Logic
-                if gen_for_year >= predicted_annual_consumption_kwh:
-                    savings = predicted_annual_consumption_kwh * current_import_tariff
-                    excess_exported = gen_for_year - predicted_annual_consumption_kwh
-                    revenue = excess_exported * export_tariff_lkr
-                else:
-                    savings = gen_for_year * current_import_tariff
-                    revenue = 0
+            revenue = np.where(gen_for_year >= predicted_annual_consumption_kwh,
+                               (gen_for_year - predicted_annual_consumption_kwh) * export_tariff_lkr,
+                               0)
 
-                total_financial_benefit = savings + revenue
+            total_financial_benefit = savings + revenue
 
-                # Costs for the year
-                year_cost = annual_maintenance
-                if year == inverter_fail_year:
-                    year_cost += inverter_cost
+            # Costs
+            year_cost = np.copy(annual_maintenance)
+            year_cost[inverter_fail_year == year] += inverter_cost
 
-                # Net Cash Flow & NPV
-                net_flow = total_financial_benefit - year_cost
-                discounted_flow = net_flow / ((1 + self.DISCOUNT_RATE) ** year)
+            # Cash Flows
+            net_flow = total_financial_benefit - year_cost
+            discounted_flow = net_flow / ((1 + self.DISCOUNT_RATE) ** year)
 
-                npv += discounted_flow
-                cumulative_cash += net_flow
-                total_net_profit += net_flow
+            npv_array += discounted_flow
+            cumulative_cash += net_flow
+            total_net_profit += net_flow
 
-                # Precise Fractional Payback Calculation
-                if cumulative_cash >= 0 and not paid_back:
-                    prev_cash = cumulative_cash - net_flow
-                    payback_year = (year - 1) + (abs(prev_cash) / net_flow)
-                    paid_back = True
+            # Vectorized Fractional Payback
+            just_paid_back = (cumulative_cash >= 0) & (~paid_back)
+            if np.any(just_paid_back):
+                prev_cash = cumulative_cash[just_paid_back] - net_flow[just_paid_back]
+                payback_years[just_paid_back] = (year - 1) + (np.abs(prev_cash) / net_flow[just_paid_back])
+                paid_back[just_paid_back] = True
 
-                # Escalate CEB import tariff ONLY
-                current_import_tariff *= (1 + import_tariff_escalation)
+            current_import_tariff *= (1 + tariff_escalation)
 
-            roi_percent = (total_net_profit / initial_investment_lkr) * 100
-            sim_results.append({
-                "ROI": roi_percent,
-                "Payback": payback_year,
-                "NPV": npv
-            })
+        roi_array = (total_net_profit / initial_investment_lkr) * 100
 
         # ---------------------------------------------------------
-        # 2. AGGREGATING RESULTS
+        # 2. STATISTICAL AGGREGATION
         # ---------------------------------------------------------
-        df_sim = pd.DataFrame(sim_results)
+        expected_roi = np.mean(roi_array)
+        expected_payback = np.median(payback_years)
+        expected_npv = np.mean(npv_array)
 
-        expected_roi = df_sim["ROI"].mean()
-        expected_payback = df_sim["Payback"].median()
-        expected_npv = df_sim["NPV"].mean()
+        worst_case_roi = np.percentile(roi_array, 5)
+        worst_case_npv = np.percentile(npv_array, 5)
+        worst_case_payback = np.percentile(payback_years, 95)
 
-        # Risk metrics
-        worst_case_roi = df_sim["ROI"].quantile(0.05)
-        worst_case_npv = df_sim["NPV"].quantile(0.05)
-        worst_case_payback = df_sim["Payback"].quantile(0.95)
+        best_case_roi = np.percentile(roi_array, 95)
+        shortest_payback = np.percentile(payback_years, 10)
+        prob_positive_roi = np.mean(roi_array > 0) * 100
 
-        # Advanced Scenario Analysis Metrics for Frontend
-        best_case_roi = df_sim["ROI"].quantile(0.95)
-        shortest_payback = df_sim["Payback"].quantile(0.10)
-        prob_positive_roi = (df_sim["ROI"] > 0).mean() * 100
-
-        # Recommendation based on NPV
         if expected_npv > (initial_investment_lkr * 0.5):
             rec = "Excellent Investment: Highly resilient to market risks."
         elif expected_npv > 0:
@@ -165,11 +149,9 @@ class SolarFinancialModel:
             rec = "High Risk / Marginal Return: Consider a different system size or tariff scheme."
 
         # ---------------------------------------------------------
-        # 3. GENERATING DATA FOR FRONTEND CHARTS (NEW FOR COMMIT 10)
+        # 3. GENERATING DATA ARRAYS FOR FRONTEND VISUALIZATION
         # ---------------------------------------------------------
         yearly_net_cashflow = []
-
-        # Initialize cumulative tracking arrays for Year 0
         baseline_cum_cashflow = [-initial_investment_lkr]
         p10_cum_cashflow = [-initial_investment_lkr]
         p90_cum_cashflow = [-initial_investment_lkr]
@@ -178,55 +160,46 @@ class SolarFinancialModel:
 
         for year in range(1, self.PROJECT_LIFETIME + 1):
             yearly_net = expected_annual_return
-            if year == 10:  # Inverter Replacement Dip
+            if year == 10:
                 yearly_net -= (initial_investment_lkr * 0.25)
 
-            yearly_net_cashflow.append(round(yearly_net, 2))
+            yearly_net_cashflow.append(round(float(yearly_net), 2))
 
-            # Step the cumulative totals forward
             current_cum = baseline_cum_cashflow[-1] + yearly_net
-            baseline_cum_cashflow.append(round(current_cum, 2))
-
-            # Synthetic confidence bounds (P10 = 15% worse, P90 = 15% better) for shaded line chart
-            p10_cum_cashflow.append(round(current_cum * 0.85, 2))
-            p90_cum_cashflow.append(round(current_cum * 1.15, 2))
-
-        # Extract Monte Carlo arrays for the Histograms
-        roi_distribution = df_sim["ROI"].round(2).tolist()
-        npv_distribution = df_sim["NPV"].round(2).tolist()
+            baseline_cum_cashflow.append(round(float(current_cum), 2))
+            p10_cum_cashflow.append(round(float(current_cum * 0.85), 2))
+            p90_cum_cashflow.append(round(float(current_cum * 1.15), 2))
 
         # ---------------------------------------------------------
-        # 4. RETURN FINAL JSON
+        # 4. JSON PAYLOAD CONSTRUCTION
         # ---------------------------------------------------------
         return {
             "System_Size_KW": system_size_kw,
             "Total_Investment_LKR": initial_investment_lkr,
-            "Expected_NPV_LKR": round(expected_npv, 2),
-            "Expected_ROI_Percent": round(expected_roi, 2),
-            "Expected_Payback_Years": round(expected_payback, 1),
+            "Expected_NPV_LKR": round(float(expected_npv), 2),
+            "Expected_ROI_Percent": round(float(expected_roi), 2),
+            "Expected_Payback_Years": round(float(expected_payback), 1),
             "Risk_Analysis": {
-                "Worst_Case_ROI_Percent": round(worst_case_roi, 2),
-                "Worst_Case_NPV_LKR": round(worst_case_npv, 2),
-                "Worst_Case_Payback_Years": round(worst_case_payback, 1),
+                "Worst_Case_ROI_Percent": round(float(worst_case_roi), 2),
+                "Worst_Case_NPV_LKR": round(float(worst_case_npv), 2),
+                "Worst_Case_Payback_Years": round(float(worst_case_payback), 1),
                 "Certainty_Score": "High" if worst_case_npv > 0 else "Moderate"
             },
             "Scenario_Analysis": {
-                "Best_Case_ROI_Percent": round(best_case_roi, 2),
-                "Shortest_Payback_Years": round(shortest_payback, 1),
-                "Probability_Positive_ROI": round(prob_positive_roi, 1)
+                "Best_Case_ROI_Percent": round(float(best_case_roi), 2),
+                "Shortest_Payback_Years": round(float(shortest_payback), 1),
+                "Probability_Positive_ROI": round(float(prob_positive_roi), 1)
             },
             "Recommendation": rec,
             "Recommended_Local_Vendors": self.VENDOR_DATABASE,
-
-            # --- THE EXACT DATA YOUR HTML CHARTS NEED ---
             "Chart_Data": {
                 "Years_Labels_0_to_20": list(range(0, 21)),
                 "Yearly_Revenue_Forecast": yearly_net_cashflow,
                 "Cumulative_Cash_Flow_Expected": baseline_cum_cashflow,
                 "Cumulative_Cash_Flow_P10": p10_cum_cashflow,
                 "Cumulative_Cash_Flow_P90": p90_cum_cashflow,
-                "Monte_Carlo_ROI_Distribution": roi_distribution,
-                "Monte_Carlo_NPV_Distribution": npv_distribution
+                "Monte_Carlo_ROI_Distribution": np.round(roi_array, 2).tolist(),
+                "Monte_Carlo_NPV_Distribution": np.round(npv_array, 2).tolist()
             }
         }
 
@@ -234,19 +207,17 @@ class SolarFinancialModel:
 # =========================================================
 # TEST RUN
 # =========================================================
-roi_model = SolarFinancialModel()
+if __name__ == "__main__":
+    logger.info("Running High-Performance Financial Component Test...")
+    roi_model = SolarFinancialModel()
 
-input_size = 5
-input_gen = 7200
-input_consumption = 4800
+    final_output = roi_model.calculate_financial_report(5, 7200, 4800)
 
-final_output = roi_model.calculate_financial_report(input_size, input_gen, input_consumption)
+    # Truncate arrays for readable terminal output
+    display_output = final_output.copy()
+    display_output["Chart_Data"][
+        "Monte_Carlo_ROI_Distribution"] = f"[{len(final_output['Chart_Data']['Monte_Carlo_ROI_Distribution'])} simulated data points]"
+    display_output["Chart_Data"][
+        "Monte_Carlo_NPV_Distribution"] = f"[{len(final_output['Chart_Data']['Monte_Carlo_NPV_Distribution'])} simulated data points]"
 
-# Temporarily truncate the massive arrays for terminal viewing readability
-display_output = final_output.copy()
-display_output["Chart_Data"][
-    "Monte_Carlo_ROI_Distribution"] = f"[{len(final_output['Chart_Data']['Monte_Carlo_ROI_Distribution'])} simulated data points...]"
-display_output["Chart_Data"][
-    "Monte_Carlo_NPV_Distribution"] = f"[{len(final_output['Chart_Data']['Monte_Carlo_NPV_Distribution'])} simulated data points...]"
-
-print(json.dumps(display_output, indent=4))
+    print(json.dumps(display_output, indent=4))
