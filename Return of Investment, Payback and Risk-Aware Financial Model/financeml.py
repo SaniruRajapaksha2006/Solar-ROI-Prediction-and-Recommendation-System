@@ -17,7 +17,7 @@ class SolarFinancialModel:
     maintenance costs, tariff escalations, and inverter lifespan.
     """
 
-    def __init__(self):
+    def __init__(self, json_filename: str = "market_data.json"):
         self.PRICING_DATABASE: Dict[int, float] = {}
         self.VENDOR_DATABASE: list = []
         self.BASE_IMPORT_TARIFF_LKR: float = 45.00
@@ -26,10 +26,13 @@ class SolarFinancialModel:
         self.DISCOUNT_RATE: float = 0.10
         self.PROJECT_LIFETIME: int = 20
 
-        # Load live data from the JSON "database"
+        # TWEAK 1: Absolute path to prevent file not found errors across different environments
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        json_filepath = os.path.join(base_dir, json_filename)
+
         try:
-            if os.path.exists("market_data.json"):
-                with open("market_data.json", "r") as db_file:
+            if os.path.exists(json_filepath):
+                with open(json_filepath, "r") as db_file:
                     data = json.load(db_file)
 
                     self.PRICING_DATABASE = {int(k): v for k, v in data["pricing_database"].items()}
@@ -41,7 +44,7 @@ class SolarFinancialModel:
 
                     logger.info("Model successfully initialized with live market data from JSON database.")
             else:
-                raise FileNotFoundError("JSON database file not found.")
+                raise FileNotFoundError(f"{json_filepath} not found.")
 
         except Exception as e:
             logger.warning(f"Database error: {e}. Falling back to safe offline market data.")
@@ -61,38 +64,36 @@ class SolarFinancialModel:
         """
         Executes a High-Performance Vectorized Monte Carlo simulation.
         """
-        # --- INPUT VALIDATION ---
-        if system_size_kw <= 0 or predicted_annual_generation_kwh <= 0:
-            raise ValueError("System size and generation must be greater than zero.")
+        # TWEAK 2: COMPLETE INPUT VALIDATION
+        if system_size_kw <= 0 or predicted_annual_generation_kwh <= 0 or predicted_annual_consumption_kwh < 0:
+            raise ValueError("System size, generation, and consumption must be valid non-negative numbers.")
 
-        initial_investment_lkr = self.get_system_cost(system_size_kw)
-        export_tariff_lkr = self.get_export_tariff(system_size_kw)
+        # Force float to prevent NumPy casting errors
+        initial_investment_lkr = float(self.get_system_cost(system_size_kw))
+        export_tariff_lkr = float(self.get_export_tariff(system_size_kw))
 
         # ---------------------------------------------------------
         # 1. VECTORIZED MONTE CARLO SIMULATION
         # ---------------------------------------------------------
         n_sims = 2000
 
-        # Generate 2000 random variables instantly using NumPy arrays
         degradation_rates = np.random.uniform(0.005, 0.010, n_sims)
         annual_maintenance = (initial_investment_lkr * 0.01) * np.random.normal(1.0, 0.2, n_sims)
         inverter_fail_year = np.random.randint(8, 13, n_sims)
         tariff_escalation = np.random.uniform(0.02, 0.05, n_sims)
         inverter_cost = initial_investment_lkr * 0.25
 
-        # Initialize tracking arrays for all 2000 simulations
-        cumulative_cash = np.full(n_sims, -initial_investment_lkr)
-        npv_array = np.full(n_sims, -initial_investment_lkr)
-        payback_years = np.full(n_sims, self.PROJECT_LIFETIME + 1.0)
+        # Initialize tracking arrays for all 2000 simulations (using dtype=float)
+        cumulative_cash = np.full(n_sims, -initial_investment_lkr, dtype=float)
+        npv_array = np.full(n_sims, -initial_investment_lkr, dtype=float)
+        payback_years = np.full(n_sims, self.PROJECT_LIFETIME + 1.0, dtype=float)
         paid_back = np.zeros(n_sims, dtype=bool)
-        total_net_profit = np.zeros(n_sims)
-        current_import_tariff = np.full(n_sims, self.BASE_IMPORT_TARIFF_LKR)
+        total_net_profit = np.zeros(n_sims, dtype=float)
+        current_import_tariff = np.full(n_sims, self.BASE_IMPORT_TARIFF_LKR, dtype=float)
 
-        # Time Loop (Running 2000 scenarios simultaneously per year)
         for year in range(1, self.PROJECT_LIFETIME + 1):
             gen_for_year = predicted_annual_generation_kwh * ((1 - degradation_rates) ** (year - 1))
 
-            # Vectorized Net Accounting
             savings = np.where(gen_for_year >= predicted_annual_consumption_kwh,
                                predicted_annual_consumption_kwh * current_import_tariff,
                                gen_for_year * current_import_tariff)
@@ -103,11 +104,9 @@ class SolarFinancialModel:
 
             total_financial_benefit = savings + revenue
 
-            # Costs
             year_cost = np.copy(annual_maintenance)
             year_cost[inverter_fail_year == year] += inverter_cost
 
-            # Cash Flows
             net_flow = total_financial_benefit - year_cost
             discounted_flow = net_flow / ((1 + self.DISCOUNT_RATE) ** year)
 
@@ -115,7 +114,6 @@ class SolarFinancialModel:
             cumulative_cash += net_flow
             total_net_profit += net_flow
 
-            # Vectorized Fractional Payback
             just_paid_back = (cumulative_cash >= 0) & (~paid_back)
             if np.any(just_paid_back):
                 prev_cash = cumulative_cash[just_paid_back] - net_flow[just_paid_back]
