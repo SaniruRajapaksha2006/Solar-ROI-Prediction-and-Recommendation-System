@@ -50,3 +50,70 @@ class SimilarityMatcher:
         """Clear similarity cache"""
         self._similarity_cache.clear()
         logger.info("Similarity cache cleared")
+
+    def _filter_by_profile_compatibility(self, user_data: Dict, profile: Dict) -> bool:
+        #Filter households based on profile compatibility
+        # 1. Solar compatibility
+        user_has_solar = user_data.get('has_solar', 0)
+        profile_has_solar = profile['has_solar']
+
+        if user_has_solar != profile_has_solar:
+            logger.debug(f"Filtered - solar mismatch: user={user_has_solar}, profile={profile_has_solar}")
+            return False
+
+        # 2. Tariff consistency (very important)
+        user_tariff = user_data.get('tariff', 'D1')
+        profile_tariff = profile['tariff']
+
+        if user_tariff != profile_tariff:
+            logger.debug(f"Filtered - tariff mismatch: {user_tariff} vs {profile_tariff}")
+            return False
+
+        # 3. Data quality check
+        # Count months with data for this household
+        months_with_data = sum(1 for month in range(1, 13)
+                              if month in profile['monthly_pattern'])
+
+        if months_with_data < 6:
+            logger.debug(f"Filtered - insufficient data: {months_with_data} months")
+            return False
+
+        return True
+
+    def _calculate_data_quality_score(self, profile: Dict) -> float:
+        #Calculate data quality score for a household
+
+        score = 1.0
+
+        # Check data completeness
+        months_with_data = sum(1 for month in range(1, 13)
+                              if month in profile['monthly_pattern'])
+
+        if months_with_data < 12:
+            score *= months_with_data / 12
+
+        # Check for zero consumption months
+        zero_count = 0
+        for month in range(1, 13):
+            if month in profile['monthly_pattern']:
+                if profile['monthly_pattern'][month]['net_consumption'] < 10:
+                    zero_count += 1
+
+        if zero_count > 0:
+            score *= (12 - zero_count) / 12
+
+        return min(1.0, score)
+
+    @staticmethod
+    def _normalize_array(arr: List[float]) -> List[float]:
+        #Normalize array to 0-1 range
+        if not arr:
+            return []
+
+        arr_min = min(arr)
+        arr_max = max(arr)
+
+        if arr_max == arr_min:
+            return [0.5] * len(arr)
+
+        return [(x - arr_min) / (arr_max - arr_min) for x in arr]
