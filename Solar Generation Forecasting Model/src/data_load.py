@@ -63,7 +63,6 @@ class DataLoader:
         ceb_df = ceb_df.rename(columns={"MONTH": "Month"})
         merged = ceb_df.merge(weather_df, on="Month", how="left")
         print(f"Merged: {len(merged):,} records  |  Columns: {merged.shape[1]}")
-        merged['Total_Generation_kWh'] = merged['EXPORT_kWh'] + merged['IMPORT_kWh']
         return merged
 
     def save_data(self, df: pd.DataFrame, filepath: str | Path):

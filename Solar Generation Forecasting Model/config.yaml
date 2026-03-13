@@ -64,13 +64,13 @@ physics:
 # ── Pipeline: Outlier Detection ─────────────────────────────────
 outlier_detection:
   iqr_threshold:     1.5
-  target_column:     "Total_Generation_kWh"
+  target_column:     "EXPORT_kWh"
 
 
 # ── Pipeline: Feature Selection ─────────────────────────────────
 feature_selection:
   correlation_threshold: 0.05
-  target_column:         "Total_Generation_kWh"
+  target_column:         "EXPORT_kWh"
   # Columns to drop before modelling (non-informative or redundant)
   drop_columns:
     - TRANSFORMER_CODE

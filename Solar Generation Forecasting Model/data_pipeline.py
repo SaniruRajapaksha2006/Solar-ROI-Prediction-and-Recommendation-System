@@ -7,11 +7,11 @@ Steps:
   1. Load     - CEB export data + NASA POWER weather
   2. Merge    - Join on Month
   3. Impute   - Fill missing GHI months with historical averages
-  4. Outliers - IQR-based removal on Total_Generation_kWh
-  5. Features - Engineer Temp_Efficiency, Cloud_Factor, Physics_Pred, etc.
-  6. Select   - Drop non-informative / redundant columns
-  7. Filter   - Remove commercial accounts (>20 kW)
-  8. Target   - Create Efficiency = Total_Generation_kWh / INV_CAPACITY
+  4. Outliers - IQR-based removal on EXPORT_kWh
+  5. Target   - Create Efficiency = EXPORT_kWh / INV_CAPACITY
+  6. Features - Engineer Temp_Efficiency, Cloud_Factor, Physics_Pred, etc.
+  7. Select   - Drop non-informative / redundant columns (EXPORT_kWh kept for trainer)
+  8. Filter   - Remove commercial accounts (>20 kW)
   9. Save     - Write final.csv ready for model_trainer.py
 """
 
@@ -93,35 +93,43 @@ def main():
     df  = OutlierDetector(oc["iqr_threshold"]).detect_monthly_outliers(
               df, oc["target_column"], oc["iqr_threshold"])
 
-    # -- STEP 4: Feature Engineering ------------------------------------------
-    print("\nSTEP 4 - FEATURE ENGINEERING")
+    # -- STEP 4: Efficiency Target
+    print("\nSTEP 4 - EFFICIENCY TARGET")
+    print("-" * 40)
+
+    df["Efficiency"] = (df["EXPORT_kWh"] / df["INV_CAPACITY"]).round(4)
+    print(f"  Efficiency (kWh/kW)  mean={df['Efficiency'].mean():.2f}  "
+          f"min={df['Efficiency'].min():.2f}  max={df['Efficiency'].max():.2f}")
+
+    # -- STEP 5: Feature Engineering ------------------------------------------
+    print("\nSTEP 5 - FEATURE ENGINEERING")
     print("-" * 40)
 
     fe           = FeatureEngineer()
     df           = fe.create_all_features(df)
     new_features = fe.get_feature_list()
 
-    # -- STEP 5: Feature Selection -------------------------------------------
-    print("\nSTEP 5 - FEATURE SELECTION")
+    # -- STEP 6: Feature Selection -------------------------------------------
+    print("\nSTEP 6 - FEATURE SELECTION")
     print("-" * 40)
 
     fs        = cfg["feature_selection"]
     keep_cols = (
-        [fs["target_column"], "Month", "INV_CAPACITY"]
+        ["Efficiency", "EXPORT_kWh", "ACCOUNT_NO", "Month", "INV_CAPACITY"]
         + list(nasa["params"].values())
         + new_features
     )
 
     df = FeatureSelector().select_features(
         df=df,
-        target=fs["target_column"],
+        target="Efficiency",
         correlation_threshold=fs["correlation_threshold"],
         non_informative_cols=fs["drop_columns"],
         keep_cols=keep_cols,
     )
 
-    # -- STEP 6: Residential Filter -------------------------------------------
-    print("\nSTEP 6 - RESIDENTIAL FILTER")
+    # -- STEP 7: Residential Filter -------------------------------------------
+    print("\nSTEP 7 - RESIDENTIAL FILTER")
     print("-" * 40)
 
     max_kw = cfg["residential"]["max_capacity_kw"]
@@ -129,14 +137,6 @@ def main():
     df     = df[df["INV_CAPACITY"] <= max_kw].copy()
     print(f"  Removed {before - len(df):,} accounts > {max_kw} kW  "
           f"| Remaining: {len(df):,}")
-
-    # -- STEP 7: Efficiency Target --------------------------------------------
-    print("\nSTEP 7 - EFFICIENCY TARGET")
-    print("-" * 40)
-
-    df["Efficiency"] = (df["Total_Generation_kWh"] / df["INV_CAPACITY"]).round(4)
-    print(f"  Efficiency (kWh/kW)  mean={df['Efficiency'].mean():.2f}  "
-          f"min={df['Efficiency'].min():.2f}  max={df['Efficiency'].max():.2f}")
 
     # -- STEP 8: Save --------------------------------------------------------
     print("\nSTEP 8 - SAVE")

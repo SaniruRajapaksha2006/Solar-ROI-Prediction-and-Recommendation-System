@@ -33,7 +33,7 @@ class FeatureSelector:
         return df_clean
 
 
-    def drop_low_correlation(self, df, target='Total_Generation_kWh',
+    def drop_low_correlation(self, df, target='EXPORT_kWh',
                              threshold=0.05, exclude_cols=None):
         print(f"\nDropping features with |correlation| < {threshold}...")
         print("-" * 60)
@@ -83,7 +83,7 @@ class FeatureSelector:
         return df_clean
 
 
-    def select_features(self, df:pd.DataFrame, target:str='Total_Generation_kWh',
+    def select_features(self, df:pd.DataFrame, target:str='EXPORT_kWh',
                         correlation_threshold:float=0.05,
                         non_informative_cols:list[str]=None,
                         keep_cols:list[str]=None):

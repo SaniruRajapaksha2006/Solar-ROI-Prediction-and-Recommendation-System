@@ -436,8 +436,6 @@ if __name__ == "__main__":
     DATA_PATH  = SCRIPT_DIR / "data" / "processed" / "final.csv"
     df = pd.read_csv(DATA_PATH)
 
-    df['Efficiency'] = df['EXPORT_kWh'] / df['INV_CAPACITY']
-
     print(f"Loaded: {len(df):,} records")
 
     # Initialize trainer — target is Efficiency (kWh)
@@ -446,16 +444,14 @@ if __name__ == "__main__":
     # 1. Split by household
     X_train, X_test, y_train, y_test = trainer.get_splits(
         test_size=0.2,
-        exclude_cols=['YEAR', 'EXPORT_kWh', 'IMPORT_kWh', 'Total_Generation_kWh']
+        exclude_cols=['EXPORT_kWh']
     )
 
 
     gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
     groups = df['ACCOUNT_NO']
-    drop_cols = ['Efficiency', 'ACCOUNT_NO'] + [
-        c for c in ['YEAR', 'EXPORT_kWh'] if c in df.columns
-    ]
-    X_all = df.drop(columns=drop_cols)
+
+    X_all = df[X_train.columns]
     train_idx, _ = next(gss.split(X_all, df['Efficiency'], groups=groups))
     groups_train = groups.iloc[train_idx].reset_index(drop=True)
 
