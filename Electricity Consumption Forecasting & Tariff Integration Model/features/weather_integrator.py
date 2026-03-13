@@ -42,6 +42,46 @@ class WeatherIntegrator:
 
         logger.info(f"Weather integrator initialized with source: {self.source}")
 
+    def get_features(self, lat: float, lon: float,
+                    months: Dict[int, float]) -> Dict:
+        # Get weather features for location and months
+
+        if not months:
+            return {}
+
+        # Get year from config or use current
+        year = 2025  # Your data year
+
+        # Create cache key
+        cache_key = self._create_cache_key(lat, lon, year)
+
+        # Check cache
+        if cache_key in self._cache:
+            logger.debug(f"Using cached weather data for {lat}, {lon}")
+            return self._cache[cache_key]
+
+        # Try to load from file cache
+        cached_data = self._load_from_file_cache(cache_key)
+        if cached_data is not None:
+            self._cache[cache_key] = cached_data
+            return cached_data
+
+        # Fetch from API
+        weather_data = self._fetch_weather_data(lat, lon, year)
+
+        if weather_data:
+            # Process into features
+            features = self._process_weather_features(weather_data, months)
+
+            # Cache the result
+            self._cache[cache_key] = features
+            self._save_to_file_cache(cache_key, features)
+
+            return features
+        else:
+            logger.warning(f"Could not fetch weather data for {lat}, {lon}")
+            return self._get_fallback_features(months)
+
     def _create_cache_key(self, lat: float, lon: float, year: int) -> str:
         # Create cache key from location and year
         key_str = f"{lat:.4f}_{lon:.4f}_{year}"
@@ -188,3 +228,76 @@ class WeatherIntegrator:
             return self._get_fallback_features(user_months)
 
         return features
+
+    def _get_fallback_features(self, user_months: Dict[int, float]) -> Dict:
+        """
+        Generate fallback weather features when API fails
+        Uses Sri Lanka average seasonal patterns
+        """
+        logger.info("Using fallback weather features")
+
+        features = {}
+
+        # Sri Lanka typical monthly patterns (based on climate data)
+        # Temperatures in Celsius
+        temp_pattern = {
+            1: 26.5, 2: 27.0, 3: 28.0, 4: 28.5, 5: 28.5, 6: 28.0,
+            7: 27.5, 8: 27.5, 9: 27.5, 10: 27.0, 11: 26.5, 12: 26.0
+        }
+
+        # Humidity percentage
+        humidity_pattern = {
+            1: 75, 2: 70, 3: 70, 4: 75, 5: 80, 6: 80,
+            7: 80, 8: 80, 9: 80, 10: 80, 11: 80, 12: 80
+        }
+
+        # Rainfall in mm
+        rainfall_pattern = {
+            1: 100, 2: 80, 3: 120, 4: 200, 5: 300, 6: 200,
+            7: 150, 8: 150, 9: 200, 10: 300, 11: 300, 12: 200
+        }
+
+        # Create temperature features
+        features['temperature'] = {
+            'monthly': temp_pattern,
+            'mean': np.mean(list(temp_pattern.values())),
+            'std': np.std(list(temp_pattern.values()))
+        }
+
+        # Create humidity features
+        features['humidity'] = {
+            'monthly': humidity_pattern,
+            'mean': np.mean(list(humidity_pattern.values())),
+            'std': np.std(list(humidity_pattern.values()))
+        }
+
+        # Create rainfall features
+        features['rainfall'] = {
+            'monthly': rainfall_pattern,
+            'mean': np.mean(list(rainfall_pattern.values())),
+            'std': np.std(list(rainfall_pattern.values()))
+        }
+
+        # Add features for user's months
+        for month in user_months.keys():
+            if month in temp_pattern:
+                features[f'temperature_month_{month}'] = temp_pattern[month]
+            if month in humidity_pattern:
+                features[f'humidity_month_{month}'] = humidity_pattern[month]
+            if month in rainfall_pattern:
+                features[f'rainfall_month_{month}'] = rainfall_pattern[month]
+
+        features['data_source'] = 'fallback_pattern'
+        features['is_fallback'] = True
+
+        return features
+
+    def clear_cache(self):
+        # Clear all caches
+        self._cache.clear()
+
+        # Clear file cache
+        for cache_file in self.cache_dir.glob("*.json"):
+            cache_file.unlink()
+
+        logger.info("Weather cache cleared")
