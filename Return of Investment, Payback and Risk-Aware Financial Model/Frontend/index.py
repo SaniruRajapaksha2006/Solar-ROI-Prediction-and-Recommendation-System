@@ -141,22 +141,21 @@ if calculate_btn:
                 st.markdown("### ⚠️ Scenario Analysis")
 
                 scen_col1, scen_col2 = st.columns(2)
+                scen = results["Scenario_Analysis"]
+                risk = results["Risk_Analysis"]
 
-                # NEW FOR COMMIT 24: Populating the ROI Metrics
                 with scen_col1:
                     st.markdown("##### ROI Profiles")
-                    scen = results["Scenario_Analysis"]
-                    risk = results["Risk_Analysis"]
-
                     st.metric(label="Best Case ROI (P95)", value=f"{scen['Best_Case_ROI_Percent']}%")
                     st.metric(label="Expected ROI (P50)", value=f"{results['Expected_ROI_Percent']}%")
                     st.metric(label="Worst Case ROI (P05)", value=f"{risk['Worst_Case_ROI_Percent']}%")
 
+                # NEW FOR COMMIT 25: Populating the Payback & Risk Metrics
                 with scen_col2:
                     st.markdown("##### Payback & Risk")
-                    st.write("*Shortest Payback Placeholder*")
-                    st.write("*Longest Payback Placeholder*")
-                    st.write("*Win Probability Placeholder*")
+                    st.metric(label="Shortest Payback (P10)", value=f"{scen['Shortest_Payback_Years']} yrs")
+                    st.metric(label="Longest Payback (P95)", value=f"{risk['Worst_Case_Payback_Years']} yrs")
+                    st.metric(label="Win Probability (ROI > 0)", value=f"{scen['Probability_Positive_ROI']}%")
 
                 st.write("")  # Spacer
                 st.write("*Recommendation Badge Placeholder*")
