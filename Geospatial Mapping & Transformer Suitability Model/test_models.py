@@ -22,3 +22,11 @@ X = transformer_data[feat_cols].fillna(0)
 y = (transformer_data['utilization_rate'] < transformer_data['utilization_rate'].median()).astype(int)
 
 X_scaled = StandardScaler().fit_transform(X)
+
+models = {
+    'Random Forest'       : RandomForestClassifier(n_estimators=150, random_state=42),
+    'KNN'                 : KNeighborsClassifier(n_neighbors=3),
+    'SVM'                 : SVC(kernel='rbf', random_state=42),
+    'Logistic Regression' : LogisticRegression(random_state=42, max_iter=1000),
+    'Gradient Boosting'   : GradientBoostingClassifier(n_estimators=100, random_state=42),
+}
