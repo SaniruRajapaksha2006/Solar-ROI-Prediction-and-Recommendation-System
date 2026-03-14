@@ -1,138 +1,143 @@
 """
 data_pipeline.py
-===========================================================================
-Solar Forecasting - Data Preparation Pipeline
+================
+Prepares raw CEB + NASA data into final.csv ready for model_trainer.py.
 
-Steps:
-  1. Load     - CEB export data + NASA POWER weather
-  2. Merge    - Join on Month
-  3. Impute   - Fill missing GHI months with historical averages
-  4. Outliers - IQR-based removal on EXPORT_kWh
-  5. Features - Engineer features + create Efficiency target
-  6. Select   - Drop non-informative columns
-  7. Filter   - Remove commercial accounts (>20 kW)
-  8. Save     - Write final.csv ready for model_trainer.py
+Steps
+─────
+1. Load      CEB solar records + NASA POWER weather
+2. Impute    Fill missing GHI months from NASA 2018–2022 historical avg
+3. Outliers  IQR-based removal on EXPORT_kWh per month
+4. Engineer  Create all features + Efficiency target (= EXPORT_kWh / INV_CAPACITY)
+5. Select    Drop non-informative and low-correlation columns
+6. Filter    Keep residential accounts only (INV_CAPACITY ≤ 20 kW)
+7. Save      Write data/processed/final.csv
+
+All column logic lives in src/features/selection.py — not here.
 """
 
 from datetime import datetime
 from pathlib import Path
 
-from src.data_load import DataLoader
-from src.feature_engineering import FeatureEngineer
-from src.feature_selection import FeatureSelector
-from src.handle_missing import HandleMissing
-from src.outlier_detection import OutlierDetector
 from utils.utils_config import load_config
+from src.data.loader import DataLoader
+from src.preprocessing.missing import MissingValueHandler
+from src.preprocessing.outliers import OutlierRemover
+from src.features.engineering import FeatureEngineer
+from src.features.selection import FeatureSelector
 
-SCRIPT_DIR   = Path(__file__).resolve().parent
+
+SCRIPT_DIR    = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+DATA_RAW_DIR  = SCRIPT_DIR / "data" / "raw"
+DATA_PROC_DIR = SCRIPT_DIR / "data" / "processed"
 
-def main():
-    print("\n" + "=" * 70)
-    print("  SOLAR FORECASTING - DATA PREPARATION PIPELINE")
-    print("=" * 70)
-    print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-    cfg  = load_config()
-    nasa = cfg["nasa"]
-    p    = cfg["paths"]
+def run_pipeline(save_intermediates: bool = False) -> None:
+    cfg   = load_config()
     loc  = cfg["location"]["primary"]
+    paths = cfg["paths"]
+    imp   = cfg["imputation"]
+    oc    = cfg["outlier_detection"]
+    res   = cfg["residential"]
+    fs    = cfg["feature_selection"]
 
-    PROCESSED_DIR = SCRIPT_DIR / p["processed_dir"]
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    save_intermediates = p.get("save_intermediates", False)
+    print("=" * 60)
+    print("  DATA PIPELINE")
+    print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
 
-    loader  = DataLoader()
-    handler = HandleMissing()
+    loader = DataLoader()
 
-    # -- STEP 1: Load -----------------------------------------------------------
-    print("STEP 1 - DATA LOADING")
+    # ── STEP 1: Load ──────────────────────────────────────────────
+    print("\nSTEP 1 - LOAD")
     print("-" * 40)
 
-    ceb_data     = loader.load_ceb_data(PROJECT_ROOT / p["ceb_dataset"])
-    weather_path = SCRIPT_DIR / p["weather_cache"]
+    ceb_df       = loader.load_ceb_data(PROJECT_ROOT / paths["ceb_dataset"])
+    weather_path = SCRIPT_DIR / paths["weather_cache"]
 
     if weather_path.exists():
-        weather_data = loader.load_local_weather_data(weather_path)
+        weather_df = loader.load_local_weather(weather_path)
     else:
-        print("  Cache not found - fetching from NASA POWER...")
-        weather_data = loader.fetch_weather_data(
-            latitude=loc["lat"], longitude=loc["lon"],
-            start_yr=2025, end_yr=2025,
-            save=True, save_path=weather_path,
+        print("  Weather CSV not found — fetching from NASA POWER...")
+        weather_df = loader.fetch_nasa_weather(
+            latitude=loc["lat"],
+            longitude=loc["lon"],
+            start_yr=imp["start_year"],
+            end_yr=imp["end_year"],
+            save_path=weather_path,
         )
 
-    df = loader.merge_ceb_weather(ceb_df=ceb_data, weather_df=weather_data)
+    df = loader.merge_ceb_weather(ceb_df, weather_df)
 
-    # -- STEP 2: Impute Missing --------------------------------------------------
+    # ── STEP 2: Impute missing GHI ────────────────────────────────
     print("\nSTEP 2 - MISSING VALUE IMPUTATION")
     print("-" * 40)
 
-    missing_stats = handler.analysis_missing(df)
-    if not missing_stats.empty:
-        df = handler.impute_missing(
-            data=df,
-            missing_stats=missing_stats,
-            latitude=loc["lat"], longitude=loc["lon"],
-            impute_months=nasa["impute_months"],
-            start_yr=nasa["impute_start_year"],
-            end_yr=nasa["impute_end_year"],
-        )
-        print("  Post-imputation check:")
-        handler.analysis_missing(df)
+    handler       = MissingValueHandler()
+    missing_stats = handler.analyse(df)
+    df = handler.impute_ghi(
+        df, missing_stats,
+        latitude=loc["lat"],
+        longitude=loc["lon"],
+        impute_months=imp["months"],
+        start_yr=imp["start_year"],
+        end_yr=imp["end_year"],
+    )
 
     if save_intermediates:
-        loader.save_data(df, PROCESSED_DIR / "01_imputed.csv")
+        loader.save(df, DATA_PROC_DIR / "01_imputed.csv")
 
-    # -- STEP 3: Outlier Removal ----------------------------------------------
+    # ── STEP 3: Outlier removal ───────────────────────────────────
     print("\nSTEP 3 - OUTLIER REMOVAL")
     print("-" * 40)
 
-    oc  = cfg["outlier_detection"]
-    df  = OutlierDetector(oc["iqr_threshold"]).detect_monthly_outliers(
-              df, oc["target_column"], oc["iqr_threshold"])
+    df = OutlierRemover(iqr_threshold=oc["iqr_threshold"]).remove(
+        df, column=oc["target_column"]
+    )
 
-    # -- STEP 4: Feature Engineering (includes Efficiency target) -------------
+    # ── STEP 4: Feature engineering + target ─────────────────────
     print("\nSTEP 4 - FEATURE ENGINEERING + TARGET")
     print("-" * 40)
 
     df = FeatureEngineer().create_all_features(df)
+    # create_all_features() detects EXPORT_kWh and creates
+    # Efficiency = EXPORT_kWh / INV_CAPACITY automatically.
 
-    # -- STEP 5: Feature Selection -------------------------------------------
+    # ── STEP 5: Feature selection ─────────────────────────────────
     print("\nSTEP 5 - FEATURE SELECTION")
     print("-" * 40)
 
     df = FeatureSelector().select_features(
-        df=df,
-        correlation_threshold=cfg["feature_selection"]["correlation_threshold"],
+        df, correlation_threshold=fs["correlation_threshold"]
     )
 
-    # -- STEP 6: Residential Filter -------------------------------------------
+    # ── STEP 6: Residential filter ────────────────────────────────
     print("\nSTEP 6 - RESIDENTIAL FILTER")
     print("-" * 40)
 
-    max_kw = cfg["residential"]["max_capacity_kw"]
     before = len(df)
-    df     = df[df["INV_CAPACITY"] <= max_kw].copy()
-    print(f"  Removed {before - len(df):,} accounts > {max_kw} kW  "
-          f"| Remaining: {len(df):,}")
+    df     = df[df["INV_CAPACITY"] <= res["max_capacity_kw"]].copy()
+    print(f"  Removed {before - len(df):,} records > {res['max_capacity_kw']} kW")
+    print(f"  Remaining: {len(df):,}")
 
-    # -- STEP 7: Save --------------------------------------------------------
+    # ── STEP 7: Save ──────────────────────────────────────────────
     print("\nSTEP 7 - SAVE")
     print("-" * 40)
 
-    loader.save_data(df, PROCESSED_DIR / p["final_dataset"])
+    DATA_PROC_DIR.mkdir(parents=True, exist_ok=True)
+    loader.save(df, DATA_PROC_DIR / paths["final_dataset"])
 
-    print("\n" + "=" * 70)
-    print(f"  Done - {len(df):,} records · {df.shape[1]} features")
-    print(f"  Output → {PROCESSED_DIR / p['final_dataset']}")
+    print("\n" + "=" * 60)
+    print(f"  Done — {len(df):,} records · {df.shape[1]} columns")
+    print(f"  Output : data/processed/{paths['final_dataset']}")
     print(f"  Finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 70)
+    print("=" * 60)
 
 
 if __name__ == "__main__":
     try:
-        main()
+        run_pipeline()
     except Exception as e:
         print(f"\n[✗] Pipeline failed: {e}")
         raise

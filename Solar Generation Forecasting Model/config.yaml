@@ -1,43 +1,43 @@
 # ═══════════════════════════════════════════════════════════════
-# config.yaml — Solar ROI Pipeline Configuration
+# config.yaml — Single source of truth for all constants
+#
+# Rules:
+#   - Every hardcoded value lives here, not in Python files
+#   - Python files read this; they never define magic numbers
+#   - Column lists live here because they are data decisions,
+#     not code logic — changing a column means editing this file
 # ═══════════════════════════════════════════════════════════════
 
 
-# ── Location ────────────────────────────────────────────────────
+# -- Location ----------------------------------------------------
 location:
   primary:
     name: Maharagama
-    lat: 6.8514
-    lon: 79.9211
+    lat:  6.8514
+    lon:  79.9211
   fallback:
     name: Colombo
-    lat: 6.9271
-    lon: 79.8612
+    lat:  6.9271
+    lon:  79.8612
 
 
-# ── Data Paths ──────────────────────────────────────────────────
+# -- Data Paths --------------------------------------------------
 paths:
-  ceb_dataset:   "processed/MASTER_DATASET_ALL_10TRANSFORMERS.csv"
-  weather_cache: "data/raw/data_2025.csv"
-  processed_dir: "data/processed"
-  model:         "models/best_solar_pipeline.pkl"
-
+  ceb_dataset:    "processed/MASTER_DATASET_ALL_10TRANSFORMERS.csv"
+  weather_cache:  "data/raw/data_2025.csv"
+  processed_dir:  "data/processed"
+  final_dataset:  "final.csv"
+  model:          "models/best_solar_pipeline.pkl"
   save_intermediates: false
-  final_dataset: "final.csv"
 
 
-# ── NASA POWER API ──────────────────────────────────────────────
+# -- NASA POWER API ----------------------------------------------
 nasa:
   monthly_url:     "https://power.larc.nasa.gov/api/temporal/monthly/point"
   climatology_url: "https://power.larc.nasa.gov/api/temporal/climatology/point"
   community:       "RE"
   timeout_seconds: 60
   fill_value:      -999.0
-  # Training data year range for historical imputation
-  impute_start_year: 2018
-  impute_end_year:   2022
-  # Months that typically have missing GHI in CEB dataset
-  impute_months: [11, 12]
   params:
     ALLSKY_SFC_SW_DWN: Solar_Irradiance_GHI  # kWh/m²/day
     T2M:               Temperature            # °C  (monthly mean)
@@ -49,32 +49,100 @@ nasa:
     CLRSKY_SFC_SW_DWN: Clear_Sky_GHI         # kWh/m²/day
 
 
-# ── Solar Physics Constants ─────────────────────────────────────
+# -- Imputation --------------------------------------------------
+imputation:
+  start_year:    2018   # Historical average window start
+  end_year:      2022   # Historical average window end
+  months:        [11, 12]  # Nov/Dec typically missing from CEB data
+
+
+# -- Solar Physics Constants -------------------------------------
 physics:
   performance_ratio: 0.80    # System losses: inverter, wiring, soiling
   temp_coefficient:  -0.005  # Panel efficiency loss per °C above 25°C
-  temp_reference:    25.0    # Reference temperature (°C) for efficiency calc
-  humidity_default:  75.0    # Fallback RH% for Sri Lanka tropical climate
+  temp_reference:    25.0    # Reference temperature °C
+  humidity_default:  75.0    # Fallback RH% for Sri Lanka
 
 
-# ── Pipeline: Outlier Detection ─────────────────────────────────
+# -- Outlier Detection -------------------------------------------
 outlier_detection:
-  iqr_threshold:     1.5
-  target_column:     "EXPORT_kWh"
+  iqr_threshold:  1.5
+  target_column:  "EXPORT_kWh"
 
 
-# ── Pipeline: Feature Selection ─────────────────────────────────
+# -- Feature Selection -------------------------------------------
 feature_selection:
   correlation_threshold: 0.05
 
+  # Columns that survive into final.csv but are NOT model inputs.
+  # ACCOUNT_NO  → GroupKFold split key, excluded from X
+  # EXPORT_kWh  → used to compute Efficiency, excluded from X
+  # Efficiency  → the training target (y)
+  non_feature_cols:
+    - ACCOUNT_NO
+    - EXPORT_kWh
+    - Efficiency
 
-# ── Pipeline: Residential Filter ────────────────────────────────
+  # Columns dropped during feature selection step.
+  # These are admin/redundant/collinear columns that arrive from the
+  # raw CEB CSV merge. They are dropped once here and never again.
+  cols_to_drop:
+    - TRANSFORMER_CODE
+    - TRANSFORMER_LAT
+    - TRANSFORMER_LON
+    - CUSTOMER_LAT
+    - CUSTOMER_LON
+    - DISTANCE_FROM_TF_M
+    - DATA_QUALITY
+    - SOURCE
+    - CAL_TARIFF
+    - PHASE
+    - YEAR
+    - HAS_SOLAR
+    - NET_CONSUMPTION_kWh
+    - IMPORT_kWh
+    - Total_Generation_kWh   # = EXPORT + IMPORT, not a solar signal
+    - Max_Temperature        # collinear with Temperature
+    - Min_Temperature        # collinear with Temperature
+    - Clear_Sky_GHI          # collinear with Solar_Irradiance_GHI
+
+  # Exact columns fed to pipeline.fit() and pipeline.predict().
+  # This list must be identical at training time and inference time.
+  model_features:
+    - Month
+    - INV_CAPACITY
+    - Solar_Irradiance_GHI
+    - Temperature
+    - Humidity
+    - Precipitation
+    - Wind_Speed
+    - Temp_Efficiency
+    - Temp_Range
+    - GHI_Adjusted
+    - Cloud_Factor
+    - Month_Sin
+    - Month_Cos
+    - Days_In_Month
+    - Expected_Generation
+    - Physics_Pred
+
+
+# -- Residential Filter ------------------------------------------
 residential:
-  max_capacity_kw: 20   # Sri Lanka residential solar cap — filters commercial
+  max_capacity_kw: 20   # Sri Lanka residential cap — filters commercial
 
 
-# ── ROI / Financial Constants ────────────────────────────────────
+# -- ROI / Financial Constants -----------------------------------
 roi:
-  net_plus_tariff_lkr:  37.00     # LKR per kWh (Net Plus, PUCSL 2025)
-  cost_per_kw_lkr: 180000    # LKR per kW installed (market estimate)
-  mae_kwh_per_kw:       18.0      # kWh/kW — model uncertainty margin
+  net_plus_tariff_lkr: 37.00    # LKR/kWh (Net Plus tariff, PUCSL 2025)
+  mae_kwh_per_kw:      18.0     # kWh/kW model uncertainty margin
+
+
+# -- Similarity Model --------------------------------------------
+similarity:
+  n_neighbors: 3          # k — how many historical months to average
+  metric:      euclidean  # euclidean or cosine
+  features:               # features used for distance calculation
+    - Solar_Irradiance_GHI
+    - Temperature
+    - Cloud_Factor

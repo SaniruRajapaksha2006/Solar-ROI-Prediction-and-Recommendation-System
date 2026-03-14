@@ -80,7 +80,7 @@ class FeatureSelector:
             print("  Efficiency column not found - skipping correlation filter")
             return df
 
-        exclude = set(NON_FEATURE_COLS + ["Month", "INV_CAPACITY"])
+        exclude = set(NON_FEATURE_COLS + MODEL_FEATURES + ["Month", "INV_CAPACITY"])
         numeric = df.select_dtypes(include=[np.number]).columns.tolist()
         to_check = [c for c in numeric if c not in exclude]
 
