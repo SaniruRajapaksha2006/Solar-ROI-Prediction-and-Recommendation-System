@@ -70,7 +70,7 @@ class BaselineEvaluator:
 
             vs_physics = ""
             if physics_mae is not None:
-                vs_physics = "✓ beats" if mae < physics_mae else "✗ loses"
+                vs_physics = "beats" if mae < physics_mae else "✗ loses"
 
             results.append({
                 "Model":        name,
