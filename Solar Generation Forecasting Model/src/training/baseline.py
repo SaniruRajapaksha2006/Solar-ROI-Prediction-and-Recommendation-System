@@ -54,3 +54,47 @@ class BaselineEvaluator:
         print("BASELINE COMPARISON  (untuned models vs physics)")
         print("=" * 60)
 
+        physics_mae = self._physics_baseline(y_test, df_test_raw)
+
+        results = []
+        for name, model in _BASE_MODELS.items():
+            pipe = Pipeline([("scaler", StandardScaler()), ("model", model)])
+            pipe.fit(X_train, y_train)
+            preds = pipe.predict(X_test)
+
+            mae  = mean_absolute_error(y_test, preds)
+            rmse = np.sqrt(mean_squared_error(y_test, preds))
+            r2   = r2_score(y_test, preds)
+            mape = np.mean(np.abs((y_test - preds) /
+                                  y_test.replace(0, np.nan))) * 100
+
+            vs_physics = ""
+            if physics_mae is not None:
+                vs_physics = "✓ beats" if mae < physics_mae else "✗ loses"
+
+            results.append({
+                "Model":        name,
+                "MAE (kWh/kW)": round(mae, 4),
+                "RMSE":         round(rmse, 4),
+                "R²":           round(r2, 4),
+                "MAPE (%)":     round(mape, 2),
+                "vs Physics":   vs_physics,
+            })
+            print(f"  {name:<20} MAE={mae:.4f}  R²={r2:.4f}  {vs_physics}")
+
+        df_results = pd.DataFrame(results).sort_values("MAE (kWh/kW)")
+        print("\n" + df_results.to_string(index=False))
+        return df_results
+
+
+    def _physics_baseline(self, y_test: pd.Series,
+                          df_test_raw: pd.DataFrame) -> float | None:
+        if df_test_raw is None or "Physics_Pred" not in df_test_raw.columns:
+            print("  (Physics baseline skipped — pass df_test_raw to enable)\n")
+            return None
+
+        mae = mean_absolute_error(y_test, df_test_raw["Physics_Pred"])
+        r2  = r2_score(y_test, df_test_raw["Physics_Pred"])
+        print(f"\n  Physics baseline  MAE={mae:.4f} kWh/kW  R²={r2:.4f}")
+        print(f"  ML models must beat MAE={mae:.4f} to justify complexity\n")
+        return mae
