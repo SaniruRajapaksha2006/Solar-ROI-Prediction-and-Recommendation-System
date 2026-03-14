@@ -22,3 +22,9 @@ if 'error' in data:
 
 results = data['transformers']
 print(f"Got {len(results)} transformers")
+
+y_true = [1 if tf['canSupport'] else 0 for tf in results]
+y_pred = [1 if tf['score'] >= 60 else 0 for tf in results]
+
+print("\nGround truth (canSupport) :", y_true)
+print("Predicted   (score >= 60) :", y_pred)
