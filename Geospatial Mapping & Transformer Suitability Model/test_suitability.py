@@ -11,3 +11,14 @@ payload = {
     'solarCapacity': 5.0,
     'searchRadius' : 5000
 }
+
+print("Calling assessment API...")
+response = requests.post(f'{API}/api/assess', json=payload)
+data     = response.json()
+
+if 'error' in data:
+    print(f"API Error: {data['error']}")
+    exit()
+
+results = data['transformers']
+print(f"Got {len(results)} transformers")
