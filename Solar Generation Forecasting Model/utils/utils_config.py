@@ -53,6 +53,6 @@ def get_physics_constants() -> dict[str, Any]:
 def get_nasa_params() -> dict[str, str]:
     """
     Return the NASA API key -> column name mapping.
-    Used by nasa_power.py, data_pipeline.py, handle_missing.py.
+    Used by nasa_power.py, data_pipeline.py, missing.py.
     """
     return load_config()["nasa"]["params"]
