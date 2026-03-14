@@ -140,14 +140,17 @@ if calculate_btn:
             with bottom_col1:
                 st.markdown("### ⚠️ Scenario Analysis")
 
-                # NEW FOR COMMIT 23: UI Layout Grid for Scenario Analysis
                 scen_col1, scen_col2 = st.columns(2)
 
+                # NEW FOR COMMIT 24: Populating the ROI Metrics
                 with scen_col1:
                     st.markdown("##### ROI Profiles")
-                    st.write("*Best Case Placeholder*")
-                    st.write("*Expected Placeholder*")
-                    st.write("*Worst Case Placeholder*")
+                    scen = results["Scenario_Analysis"]
+                    risk = results["Risk_Analysis"]
+
+                    st.metric(label="Best Case ROI (P95)", value=f"{scen['Best_Case_ROI_Percent']}%")
+                    st.metric(label="Expected ROI (P50)", value=f"{results['Expected_ROI_Percent']}%")
+                    st.metric(label="Worst Case ROI (P05)", value=f"{risk['Worst_Case_ROI_Percent']}%")
 
                 with scen_col2:
                     st.markdown("##### Payback & Risk")
