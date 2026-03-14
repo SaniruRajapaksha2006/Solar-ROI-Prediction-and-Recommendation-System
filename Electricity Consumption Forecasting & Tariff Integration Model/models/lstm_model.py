@@ -443,3 +443,95 @@ class LSTMForecaster:
             return "SW Monsoon"
         else:
             return "Dry Season"
+
+    def save(self, filepath: Union[str, Path]):
+        filepath = Path(filepath)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+        # Save Keras model
+        self.model.save(str(filepath))
+
+        # Save scalers and metadata
+        metadata = {
+            'architecture': self.architecture,
+            'layers': self.layers,
+            'dropout': self.dropout,
+            'lookback': self.lookback,
+            'horizon': self.horizon,
+            'input_shape': self.input_shape,
+            'is_trained': self.is_trained
+        }
+
+        metadata_path = filepath.with_suffix('.pkl')
+        with open(metadata_path, 'wb') as f:
+            pickle.dump(metadata, f)
+
+        logger.info(f"Model saved to {filepath}")
+
+    def load(self, filepath: Union[str, Path]):
+        # Load saved model with proper custom objects
+
+        filepath = Path(filepath)
+        print(f"Attempting to load model from: {filepath}")
+        print(f"File exists: {filepath.exists()}")
+
+        # Define custom objects for loading
+        from tensorflow.keras.losses import MeanAbsoluteError
+        from tensorflow.keras.metrics import MeanAbsoluteError as MAEMetric
+        from tensorflow.keras.optimizers import Adam
+        from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
+
+        custom_objects = {
+            'mae': MAEMetric(),
+            'loss': MeanAbsoluteError(),
+            'MeanAbsoluteError': MeanAbsoluteError,
+            'Adam': Adam,
+            'LSTM': LSTM,
+            'Dense': Dense,
+            'Dropout': Dropout,
+            'BatchNormalization': BatchNormalization
+        }
+
+        try:
+            # Load with custom objects
+            self.model = load_model(
+                str(filepath),
+                custom_objects=custom_objects,
+                compile=True  # Keep compilation for metrics
+            )
+            print(f"Model loaded successfully with custom objects")
+        except Exception as e:
+            print(f"Error loading with custom objects: {e}")
+            print("Attempting to load with default settings...")
+
+            # Try loading with default settings
+            self.model = load_model(str(filepath), compile=False)
+            print(f"Model loaded with compile=False")
+
+            # Recompile the model
+            self.model.compile(
+                optimizer='adam',
+                loss='mae',
+                metrics=['mae']
+            )
+            print(f"Model recompiled successfully")
+
+        # Load metadata
+        metadata_path = filepath.with_suffix('.pkl')
+        if metadata_path.exists():
+            with open(metadata_path, 'rb') as f:
+                metadata = pickle.load(f)
+
+            self.architecture = metadata.get('architecture', 'bidirectional')
+            self.layers = metadata.get('layers', [64, 32, 16])
+            self.dropout = metadata.get('dropout', [0.3, 0.3, 0.3])
+            self.lookback = metadata.get('lookback', 12)
+            self.horizon = metadata.get('horizon', 12)
+            self.input_shape = metadata.get('input_shape')
+            self.is_trained = metadata.get('is_trained', True)
+            print(f"   Metadata loaded, is_trained: {self.is_trained}")
+        else:
+            self.is_trained = True
+            print(f"   No metadata found, assuming model is trained")
+
+        print(f"Model ready for predictions")
