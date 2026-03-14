@@ -158,7 +158,6 @@ if calculate_btn:
 
                 st.write("")  # Spacer
 
-                # NEW FOR COMMIT 26: Dynamic Recommendation Badge
                 st.markdown("### 💡 Final Recommendation")
                 rec_text = results["Recommendation"]
 
@@ -169,9 +168,16 @@ if calculate_btn:
                 else:
                     st.warning(f"**{rec_text}**")
 
+            # NEW FOR COMMIT 27: Local Vendor Recommendation Cards
             with bottom_col2:
                 st.markdown("### 🏢 Local Vendor Recommendations")
-                st.write("*Vendor Cards Placeholder*")
+                st.write(f"Based on your location, here are reputed vendors for a **{system_size_kw}kW** system:")
+
+                for vendor in results["Recommended_Local_Vendors"]:
+                    with st.container(border=True):
+                        st.markdown(f"**{vendor['Name']}**")
+                        st.markdown(f"📍 {vendor['Location']} | 📞 {vendor['Contact']}")
+                        st.caption(f"Specialty: {vendor['Specialty']}")
 
 else:
     st.info("👈 Please adjust the parameters in the sidebar and click **Run Financial Simulation**.")
