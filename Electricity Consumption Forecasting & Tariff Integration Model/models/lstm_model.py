@@ -224,7 +224,7 @@ class LSTMForecaster:
         return self.history.history
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        
+
         if not self.is_trained:
             raise ValueError("Model must be trained before prediction")
 
@@ -237,3 +237,209 @@ class LSTMForecaster:
             X = np.array(X_seq)
 
         return self.model.predict(X, verbose=0)
+
+    def forecast(self, user_data: Dict, features: Dict) -> Dict:
+        """
+        Generate forecast for a single user
+        Aligns months based on user's last month
+        """
+        if not self.is_trained:
+            logger.warning("Model not trained, cannot generate LSTM forecast")
+            return None
+
+        try:
+            # Extract features for prediction
+            X = features.get('lstm_input')
+            if X is None:
+                logger.error("No LSTM input features available")
+                return None
+
+            # Get user's last month to align forecast
+            user_months = user_data.get('consumption_months', {})
+            if user_months:
+                last_user_month = max(user_months.keys())
+                last_user_year = user_data.get('year', 2025)  # You might need to pass this
+            else:
+                last_user_month = 12
+                last_user_year = 2025
+
+            logger.info(f"User's last month: {last_user_month}/{last_user_year}")
+
+            # Generate prediction
+            y_pred = self.predict(X)
+
+            # Get last prediction (most recent)
+            if len(y_pred.shape) > 1:
+                forecast_values = y_pred[-1]
+            else:
+                forecast_values = y_pred
+
+            # Ensure we have 12 months
+            if len(forecast_values) < 12:
+                forecast_values = np.pad(forecast_values, (0, 12 - len(forecast_values)), 'edge')
+            elif len(forecast_values) > 12:
+                forecast_values = forecast_values[:12]
+
+            # Calculate starting month (next month after user's last)
+            start_month = (last_user_month % 12) + 1
+            start_year = last_user_year + (1 if start_month == 1 else 0)
+
+            # Create properly aligned monthly forecast
+            monthly_forecast = {}
+            monthly_details = []
+
+            for i in range(12):
+                current_month = ((start_month - 1 + i) % 12) + 1
+                current_year = start_year + ((start_month - 1 + i) // 12)
+
+                monthly_forecast[current_month] = float(forecast_values[i])
+
+                monthly_details.append({
+                    'month': current_month,
+                    'month_name': self._get_month_name(current_month),
+                    'year': current_year,
+                    'consumption_kwh': round(forecast_values[i], 1),
+                    'confidence': self._estimate_confidence(),
+                    'season': self._get_sri_lanka_season(current_month)
+                })
+
+            # Calculate statistics
+            values = list(monthly_forecast.values())
+            annual_total = sum(values)
+            annual_avg = annual_total / 12
+            peak_month = max(range(1, 13), key=lambda m: monthly_forecast[m])
+
+            forecast_stats = {
+                'annual_total': annual_total,
+                'annual_average': annual_avg,
+                'peak_month': peak_month,
+                'peak_consumption': monthly_forecast[peak_month],
+                'overall_confidence': self._estimate_confidence(),
+                'forecast_period': {
+                    'start': f"{self._get_month_name(start_month)} {start_year}",
+                    'end': f"{self._get_month_name(((start_month + 10) % 12) + 1)} {start_year + (1 if start_month > 1 else 0)}"
+                }
+            }
+
+            uncertainty = {}
+            for month in range(1, 13):
+                val = monthly_forecast[month]
+                uncertainty[month] = {
+                    'lower_bound': val * 0.8,
+                    'upper_bound': val * 1.2,
+                    'std_dev': val * 0.2
+                }
+
+            result = {
+                'forecast': {
+                    'monthly_values': monthly_forecast,
+                    'monthly_details': monthly_details,
+                    'uncertainty_ranges': uncertainty,
+                    'statistics': forecast_stats
+                },
+                'metadata': {
+                    'generated_at': datetime.now().isoformat(),
+                    'user_months_provided': len(user_months),
+                    'user_last_month': f"{last_user_month}/{last_user_year}",
+                    'forecast_start': f"{self._get_month_name(start_month)} {start_year}",
+                    'forecast_method': 'lstm',
+                    'architecture': self.architecture,
+                    'confidence': self._estimate_confidence()
+                }
+            }
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error in LSTM forecast: {e}")
+            return None
+
+    def _get_month_name(self, month_num: int) -> str:
+        # Get month name from number
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        return month_names[month_num - 1] if 1 <= month_num <= 12 else f"Month {month_num}"
+
+    def _estimate_confidence(self) -> float:
+        # Estimate confidence based on training history
+        if not self.history:
+            return 0.5
+
+        # Use validation loss if available, otherwise training loss
+        if 'val_loss' in self.history.history:
+            final_loss = self.history.history['val_loss'][-1]
+        else:
+            final_loss = self.history.history['loss'][-1]
+
+        # Convert loss to confidence (lower loss = higher confidence)
+        # Assuming typical loss range 0-1000 kWh
+        confidence = max(0.3, min(0.95, 1.0 - (final_loss / 1000)))
+        return float(confidence)
+
+    def _create_forecast_result(self, monthly_forecast: Dict[int, float], confidence: float,
+                               user_data: Dict) -> Dict:
+        # Create forecast result dictionary
+        values = list(monthly_forecast.values())
+        annual_total = sum(values)
+        annual_avg = annual_total / 12
+        peak_month = max(range(1, 13), key=lambda m: monthly_forecast[m])
+
+        forecast_stats = {
+            'annual_total': annual_total,
+            'annual_average': annual_avg,
+            'peak_month': peak_month,
+            'peak_consumption': monthly_forecast[peak_month],
+            'overall_confidence': confidence
+        }
+
+        uncertainty = {}
+        for month in range(1, 13):
+            val = monthly_forecast[month]
+            uncertainty[month] = {
+                'lower_bound': val * 0.8,
+                'upper_bound': val * 1.2,
+                'std_dev': val * 0.2
+            }
+
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+        monthly_details = []
+        for month in range(1, 13):
+            monthly_details.append({
+                'month': month,
+                'month_name': month_names[month - 1],
+                'consumption_kwh': round(monthly_forecast[month], 1),
+                'confidence': confidence,
+                'season': self._get_sri_lanka_season(month)
+            })
+
+        result = {
+            'forecast': {
+                'monthly_values': monthly_forecast,
+                'monthly_confidence': {m: confidence for m in range(1, 13)},
+                'monthly_details': monthly_details,
+                'uncertainty_ranges': uncertainty,
+                'statistics': forecast_stats
+            },
+            'metadata': {
+                'generated_at': datetime.now().isoformat(),
+                'user_months_provided': len(user_data.get('consumption_months', {})),
+                'forecast_method': 'lstm',
+                'architecture': self.architecture,
+                'confidence': confidence
+            }
+        }
+
+        return result
+
+    def _get_sri_lanka_season(self, month: int) -> str:
+        # Get Sri Lankan season for month
+        if month in [12, 1, 2]:
+            return "NE Monsoon"
+        elif month in [3, 4]:
+            return "Dry Season"
+        elif month in [5, 6, 7, 8, 9]:
+            return "SW Monsoon"
+        else:
+            return "Dry Season"
