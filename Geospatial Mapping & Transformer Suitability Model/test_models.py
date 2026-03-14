@@ -57,3 +57,6 @@ for name, model in models.items():
     print(f"{name:<25} {cv_mean:>17.2f}% {model_acc:>15.2f}% {verdict:>10}")
 
 print("=" * 65)
+
+best = max(results, key=lambda x: (x[2] + x[1]) / 2)
+print(f"\n✓ Best Model: {best[0]}  |  CV: {best[1]:.2f}%  |  Accuracy: {best[2]:.2f}%")
