@@ -29,6 +29,91 @@ class EnsembleForecaster:
 
         logger.info(f"Added forecaster: {name} with weight {weight}")
 
+    def forecast(self, user_data: Dict, similar_households: List,
+                 features: Optional[Dict] = None) -> Dict:
+
+        logger.info("Generating ensemble forecast")
+
+        forecasts = {}
+        confidences = {}
+        errors = []
+
+        # Get forecasts from each method
+        for name, forecaster in self.forecasters.items():
+            try:
+                if name == 'lstm' and features is not None:
+                    # LSTM forecast
+                    result = forecaster.forecast(user_data, features)
+                    if result and 'forecast' in result:
+                        forecasts[name] = result['forecast']['monthly_values']
+                        confidences[name] = result['forecast']['statistics']['overall_confidence']
+                        logger.info(f"LSTM forecast successful, confidence: {confidences[name]:.2f}")
+                    else:
+                        logger.warning("LSTM forecast failed, falling back")
+                        forecasts[name] = None
+                        confidences[name] = 0.0
+
+                elif name == 'pattern':
+                    # Pattern-based forecast
+                    result = forecaster.extract_pattern_with_forecast(similar_households, user_data)
+                    if result and 'forecast' in result:
+                        forecasts[name] = result['forecast']['monthly_values']
+                        confidences[name] = result['forecast']['statistics']['overall_confidence']
+                        logger.info(f"Pattern forecast successful, confidence: {confidences[name]:.2f}")
+                    else:
+                        forecasts[name] = None
+                        confidences[name] = 0.0
+
+            except Exception as e:
+                logger.error(f"Error in {name} forecast: {e}")
+                forecasts[name] = None
+                confidences[name] = 0.0
+
+        # Check if we have any valid forecasts
+        valid_forecasts = {name: f for name, f in forecasts.items() if f is not None}
+
+        if not valid_forecasts:
+            logger.error("All forecasting methods failed")
+            return self._create_fallback_forecast(user_data)
+
+        # If only one method succeeded, use it
+        if len(valid_forecasts) == 1:
+            name = list(valid_forecasts.keys())[0]
+            logger.info(f"Only {name} forecast available, using it")
+            return self._create_forecast_result(
+                valid_forecasts[name],
+                confidences[name],
+                user_data,
+                method=f"{name}_only"
+            )
+
+        # Combine forecasts with dynamic weights
+        combined_forecast = self._combine_forecasts(
+            valid_forecasts,
+            confidences,
+            user_data
+        )
+
+        # Calculate combined confidence
+        combined_confidence = self._calculate_combined_confidence(confidences)
+
+        # Calculate uncertainty ranges from ensemble spread
+        uncertainty = self._calculate_uncertainty(valid_forecasts)
+
+        # Prepare result
+        result = self._create_ensemble_result(
+            combined_forecast,
+            combined_confidence,
+            uncertainty,
+            valid_forecasts,
+            confidences,
+            user_data
+        )
+
+        logger.info(f"Ensemble forecast complete: annual={result['forecast']['statistics']['annual_total']:.0f} kWh")
+
+        return result
+
     def _combine_forecasts(self, forecasts: Dict[str, Dict[int, float]], confidences: Dict[str, float],
                           user_data: Dict) -> Dict[int, float]:
         # Combine forecasts using dynamic weights
@@ -275,3 +360,44 @@ class EnsembleForecaster:
             return "SW Monsoon"
         else:
             return "Dry Season"
+
+    def update_performance(self, method: str, actual: Dict[int, float],
+                          predicted: Dict[int, float]):
+        # Update performance history for a method
+        if method not in self.performance_history:
+            self.performance_history[method] = []
+
+        # Calculate error
+        months = set(actual.keys()) & set(predicted.keys())
+        if months:
+            errors = [abs(actual[m] - predicted[m]) / actual[m] for m in months]
+            mape = np.mean(errors) * 100
+            self.performance_history[method].append(mape)
+
+            # Adjust weight based on recent performance
+            if len(self.performance_history[method]) >= 3:
+                recent_mape = np.mean(self.performance_history[method][-3:])
+                self._adjust_weight(method, recent_mape)
+
+    def _adjust_weight(self, method: str, recent_error: float):
+        # Adjust ensemble weight based on recent performance
+        # Lower error = higher weight
+        if method in self.weights:
+            # Inverse relationship: weight ∝ 1/error
+            base_weight = 1.0 / recent_error if recent_error > 0 else 1.0
+
+            # Normalize with other methods
+            other_methods = [m for m in self.weights.keys() if m != method]
+            if other_methods:
+                other_weights = [self.weights[m] for m in other_methods]
+                total_other = sum(other_weights)
+
+                # Set new weight, keeping total = 1.0
+                self.weights[method] = base_weight / (base_weight + total_other)
+
+                # Adjust others proportionally
+                scale = (1.0 - self.weights[method]) / total_other if total_other > 0 else 0
+                for m in other_methods:
+                    self.weights[m] *= scale
+
+            logger.info(f"Adjusted weight for {method} to {self.weights[method]:.3f}")
