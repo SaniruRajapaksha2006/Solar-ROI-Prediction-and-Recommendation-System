@@ -150,7 +150,6 @@ if calculate_btn:
                     st.metric(label="Expected ROI (P50)", value=f"{results['Expected_ROI_Percent']}%")
                     st.metric(label="Worst Case ROI (P05)", value=f"{risk['Worst_Case_ROI_Percent']}%")
 
-                # NEW FOR COMMIT 25: Populating the Payback & Risk Metrics
                 with scen_col2:
                     st.markdown("##### Payback & Risk")
                     st.metric(label="Shortest Payback (P10)", value=f"{scen['Shortest_Payback_Years']} yrs")
@@ -158,7 +157,17 @@ if calculate_btn:
                     st.metric(label="Win Probability (ROI > 0)", value=f"{scen['Probability_Positive_ROI']}%")
 
                 st.write("")  # Spacer
-                st.write("*Recommendation Badge Placeholder*")
+
+                # NEW FOR COMMIT 26: Dynamic Recommendation Badge
+                st.markdown("### 💡 Final Recommendation")
+                rec_text = results["Recommendation"]
+
+                if "Excellent" in rec_text:
+                    st.success(f"**{rec_text}**")
+                elif "Good" in rec_text:
+                    st.info(f"**{rec_text}**")
+                else:
+                    st.warning(f"**{rec_text}**")
 
             with bottom_col2:
                 st.markdown("### 🏢 Local Vendor Recommendations")
