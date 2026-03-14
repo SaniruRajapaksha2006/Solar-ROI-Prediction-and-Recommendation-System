@@ -22,12 +22,6 @@ class LSTMForecaster:
     """
 
     def __init__(self, config: Dict):
-        """
-        Initialize LSTM forecaster
-
-        Args:
-            config: Configuration dictionary
-        """
         self.config = config
         self.model = None
         self.scaler_X = None
@@ -48,15 +42,6 @@ class LSTMForecaster:
         self.horizon = lstm_config.get('forecast_horizon', 12)
 
     def build_model(self, input_shape: Tuple[int, int]) -> tf.keras.Model:
-        """
-        Build LSTM model based on configuration
-
-        Args:
-            input_shape: (sequence_length, n_features)
-
-        Returns:
-            Compiled Keras model
-        """
         self.input_shape = input_shape
 
         if self.architecture == 'bidirectional':
@@ -68,9 +53,8 @@ class LSTMForecaster:
 
         # Compile model
         def weighted_mae(y_true, y_pred):
-            """
-            Weighted MAE that penalizes errors on low consumption more heavily
-            """
+            # Weighted MAE that penalizes errors on low consumption more heavily
+
             mae = tf.abs(y_true - y_pred)
 
             # Higher weight for low consumption values (under 400 kWh)
@@ -95,7 +79,7 @@ class LSTMForecaster:
         return model
 
     def _build_standard_lstm(self) -> tf.keras.Model:
-        """Build standard LSTM (unidirectional)"""
+        # Build standard LSTM (unidirectional)
         model = Sequential()
 
         # First LSTM layer
@@ -130,7 +114,7 @@ class LSTMForecaster:
         return model
 
     def _build_bidirectional_lstm(self) -> tf.keras.Model:
-        """Build bidirectional LSTM"""
+        # Build bidirectional LSTM
         model = Sequential()
 
         # First bidirectional layer
@@ -163,7 +147,7 @@ class LSTMForecaster:
         return model
 
     def _build_encoder_decoder(self) -> tf.keras.Model:
-        """Build encoder-decoder architecture for seq2seq"""
+        # Build encoder-decoder architecture for seq2seq
         # Encoder
         encoder_inputs = Input(shape=self.input_shape)
         encoder = LSTM(self.layers[0], return_state=True)
@@ -181,3 +165,75 @@ class LSTMForecaster:
 
         model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
         return model
+
+    def prepare_sequences(self, X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        X_seq, y_seq = [], []
+
+        for i in range(len(X) - self.lookback - self.horizon + 1):
+            X_seq.append(X[i:i + self.lookback])
+            y_seq.append(y[i + self.lookback:i + self.lookback + self.horizon])
+
+        return np.array(X_seq), np.array(y_seq)
+
+    def train(self, X_train: np.ndarray, y_train: np.ndarray,
+              X_val: Optional[np.ndarray] = None,
+              y_val: Optional[np.ndarray] = None) -> Dict:
+
+        if self.model is None:
+            # Infer input shape from data
+            if len(X_train.shape) == 2:
+                # Need to create sequences
+                X_train, y_train = self.prepare_sequences(X_train, y_train)
+                if X_val is not None:
+                    X_val, y_val = self.prepare_sequences(X_val, y_val)
+
+            input_shape = (X_train.shape[1], X_train.shape[2])
+            self.build_model(input_shape)
+
+        # Callbacks
+        callbacks = [
+            EarlyStopping(
+                monitor='val_loss' if X_val is not None else 'loss',
+                patience=10,
+                restore_best_weights=True
+            ),
+            ReduceLROnPlateau(
+                monitor='val_loss' if X_val is not None else 'loss',
+                factor=0.5,
+                patience=5,
+                min_lr=1e-6
+            )
+        ]
+
+        # Train
+        validation_data = (X_val, y_val) if X_val is not None else None
+
+        self.history = self.model.fit(
+            X_train, y_train,
+            validation_data=validation_data,
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            callbacks=callbacks,
+            verbose=0
+        )
+
+        self.is_trained = True
+        logger.info(f"Model trained for {len(self.history.history['loss'])} epochs")
+        logger.info(f"Final loss: {self.history.history['loss'][-1]:.4f}")
+
+        return self.history.history
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        
+        if not self.is_trained:
+            raise ValueError("Model must be trained before prediction")
+
+        # Prepare sequences if needed
+        if len(X.shape) == 2:
+            # Create sequences
+            X_seq = []
+            for i in range(len(X) - self.lookback + 1):
+                X_seq.append(X[i:i + self.lookback])
+            X = np.array(X_seq)
+
+        return self.model.predict(X, verbose=0)
