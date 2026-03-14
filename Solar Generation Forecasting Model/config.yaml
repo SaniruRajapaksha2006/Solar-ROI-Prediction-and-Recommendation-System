@@ -70,26 +70,6 @@ outlier_detection:
 # ── Pipeline: Feature Selection ─────────────────────────────────
 feature_selection:
   correlation_threshold: 0.05
-  target_column:         "EXPORT_kWh"
-  # Columns to drop before modelling (non-informative or redundant)
-  drop_columns:
-    - TRANSFORMER_CODE
-    - TRANSFORMER_LAT
-    - TRANSFORMER_LON
-    - CUSTOMER_LAT
-    - CUSTOMER_LON
-    - DISTANCE_FROM_TF_M
-    - DATA_QUALITY
-    - SOURCE
-    - CAL_TARIFF
-    - PHASE
-    - YEAR
-    - HAS_SOLAR
-    - NET_CONSUMPTION_kWh
-    - IMPORT_kWh
-    - Max_Temperature    # correlated with Temperature
-    - Min_Temperature    # correlated with Temperature
-    - Clear_Sky_GHI      # correlated with Solar_Irradiance_GHI
 
 
 # ── Pipeline: Residential Filter ────────────────────────────────

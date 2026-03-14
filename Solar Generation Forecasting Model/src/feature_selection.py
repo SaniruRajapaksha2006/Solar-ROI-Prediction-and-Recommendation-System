@@ -1,6 +1,43 @@
 import numpy as np
 import pandas as pd
 
+
+# NON_FEATURE_COLS  -- stay in final.csv but are NOT model inputs
+#   ACCOUNT_NO  : used for GroupKFold split, dropped from X in trainer
+#   EXPORT_kWh  : used to compute Efficiency, dropped from X in trainer
+#   Efficiency  : the training target (y)
+#
+# COLS_TO_DROP  -- removed entirely during feature selection
+#   Everything here is either redundant, non-informative, or
+#   highly correlated with a kept column.
+#
+# MODEL_FEATURES  -- exact columns fed to pipeline.fit() / pipeline.predict()
+#   Must match in both model_trainer.py and predict.py.
+# ------------------------------------------------------------------------------
+
+NON_FEATURE_COLS = ["ACCOUNT_NO", "EXPORT_kWh", "Efficiency"]
+
+COLS_TO_DROP = [
+    "TRANSFORMER_CODE", "TRANSFORMER_LAT", "TRANSFORMER_LON",
+    "CUSTOMER_LAT", "CUSTOMER_LON", "DISTANCE_FROM_TF_M",
+    "DATA_QUALITY", "SOURCE", "CAL_TARIFF", "PHASE", "YEAR",
+    "HAS_SOLAR", "NET_CONSUMPTION_kWh", "IMPORT_kWh",
+    "Total_Generation_kWh",
+    "Max_Temperature",   # correlated with Temperature
+    "Min_Temperature",   # correlated with Temperature
+    "Clear_Sky_GHI",     # correlated with Solar_Irradiance_GHI
+]
+
+MODEL_FEATURES = [
+    "Month", "INV_CAPACITY",
+    "Solar_Irradiance_GHI", "Temperature", "Humidity",
+    "Precipitation", "Wind_Speed",
+    "Temp_Efficiency", "Temp_Range", "GHI_Adjusted", "Cloud_Factor",
+    "Month_Sin", "Month_Cos", "Days_In_Month",
+    "Expected_Generation", "Physics_Pred",
+]
+
+
 class FeatureSelector:
 
     def __init__(self):
@@ -83,23 +120,17 @@ class FeatureSelector:
         return df_clean
 
 
-    def select_features(self, df:pd.DataFrame, target:str='EXPORT_kWh',
-                        correlation_threshold:float=0.05,
-                        non_informative_cols:list[str]=None,
-                        keep_cols:list[str]=None):
+    def select_features(self, df: pd.DataFrame,
+                        correlation_threshold: float = 0.05):
         """
-        Complete feature selection
-
+        Complete feature selection using module-level constants.
+        
         Args:
-            df: DataFrame
-            target: Target column
-            correlation_threshold: Min correlation to keep
-            non_informative_cols: Custom non-informative columns
-            keep_cols: Columns to keep regardless (eg: Month, target...)
-            is_method_corr: whether to use method correlation or only keep keep_cols
+            df: DataFrame (post feature engineering, with Efficiency already created)
+            correlation_threshold: Min |correlation| with Efficiency to keep a column
 
         Returns:
-            DataFrame with selected features
+            DataFrame containing MODEL_FEATURES + NON_FEATURE_COLS (that exist)
         """
         print("\n" + "=" * 60)
         print("FEATURE SELECTION")
@@ -107,33 +138,28 @@ class FeatureSelector:
 
         initial_cols = df.shape[1]
 
-        # Step 1: Drop non-informative
-        df_clean = self.drop_non_informative(df, non_informative_cols)
+        # Step 1: Drop non-informative columns
+        df_clean = self.drop_non_informative(df, COLS_TO_DROP)
 
-        # Step 2: Drop low correlation
-        if keep_cols is None:
-            keep_cols = ['Month', target]
-
+        # Step 2: Drop low correlation -- exclude NON_FEATURE_COLS + Month from check
+        exclude_from_corr = NON_FEATURE_COLS + ["Month", "INV_CAPACITY"]
         df_final = self.drop_low_correlation(
             df_clean,
-            target=target,
+            target="Efficiency",
             threshold=correlation_threshold,
-            exclude_cols=keep_cols,
+            exclude_cols=exclude_from_corr,
         )
 
         # Summary
         print("\n" + "=" * 60)
         print("FEATURE SELECTION SUMMARY")
         print("=" * 60)
-
-        print(f"\nInitial columns: {initial_cols}")
-        print(f"Final columns: {df_final.shape[1]}")
-        print(f"Dropped: {initial_cols - df_final.shape[1]}")
-
-        print(f"\nRemaining features:")
+        print(f"\nInitial columns : {initial_cols}")
+        print(f"Final columns   : {df_final.shape[1]}")
+        print(f"Dropped         : {initial_cols - df_final.shape[1]}")
+        print(f"\nRemaining columns:")
         for col in df_final.columns:
             print(f"  • {col}")
-
         print("=" * 60)
 
         return df_final

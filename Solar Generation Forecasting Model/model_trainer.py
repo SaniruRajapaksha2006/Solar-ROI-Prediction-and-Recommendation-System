@@ -16,6 +16,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import Ridge, Lasso
+
+from src.feature_selection import MODEL_FEATURES, NON_FEATURE_COLS
 from sklearn.svm import SVR
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import joblib
@@ -441,17 +443,16 @@ if __name__ == "__main__":
     # Initialize trainer — target is Efficiency (kWh)
     trainer = SolarTrainer(df, group_col='ACCOUNT_NO', target='Efficiency')
 
-    # 1. Split by household
+    # 1. Split by household — exclude everything that is not a model feature
     X_train, X_test, y_train, y_test = trainer.get_splits(
         test_size=0.2,
-        exclude_cols=['EXPORT_kWh']
+        exclude_cols=[c for c in df.columns if c not in MODEL_FEATURES]
     )
-
 
     gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
     groups = df['ACCOUNT_NO']
-
-    X_all = df[X_train.columns]
+    # Use MODEL_FEATURES directly for consistent split indices
+    X_all = df[MODEL_FEATURES]
     train_idx, _ = next(gss.split(X_all, df['Efficiency'], groups=groups))
     groups_train = groups.iloc[train_idx].reset_index(drop=True)
 
