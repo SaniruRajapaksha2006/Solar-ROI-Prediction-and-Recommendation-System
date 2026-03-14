@@ -115,7 +115,6 @@ if calculate_btn:
                                      yaxis_title="Cumulative Cash (LKR)", hovermode="x unified")
                 st.plotly_chart(fig_cf, use_container_width=True)
 
-            # NEW FOR COMMIT 19: BASIC NPV HISTOGRAM TRACE
             with tab2:
                 fig_npv = go.Figure()
                 fig_npv.add_trace(go.Histogram(
@@ -125,6 +124,23 @@ if calculate_btn:
                     name='NPV Outcomes',
                     opacity=0.75
                 ))
+
+                # NEW FOR COMMIT 20: Layout, titles, and target lines
+                # Add a vertical line for the Expected NPV
+                fig_npv.add_vline(x=results["Expected_NPV_LKR"], line_dash="dash", line_color="darkred",
+                                  annotation_text=f"Expected: LKR {results['Expected_NPV_LKR']:,.0f}",
+                                  annotation_position="top right")
+
+                # Add a solid vertical line at 0 (Break-even boundary)
+                fig_npv.add_vline(x=0, line_dash="solid", line_color="black", line_width=2)
+
+                fig_npv.update_layout(
+                    title="Monte Carlo Risk Analysis: NPV Distribution (2000 Scenarios)",
+                    xaxis_title="Net Present Value (LKR)",
+                    yaxis_title="Frequency (Number of Scenarios)",
+                    bargap=0.1
+                )
+
                 st.plotly_chart(fig_npv, use_container_width=True)
 
             with tab3:
