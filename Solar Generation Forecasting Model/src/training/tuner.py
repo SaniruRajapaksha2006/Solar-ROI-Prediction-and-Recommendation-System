@@ -61,3 +61,63 @@ _MODEL_NAMES = {
     "rf":    "RandomForest",
     "gb":    "GradientBoosting",
 }
+
+
+class ModelTuner:
+
+    def __init__(self, n_folds: int = 5):
+        """
+        Args:
+            n_folds: Number of GroupKFold folds (default 5).
+                     Needs enough households to fill each fold.
+        """
+        self.n_folds = n_folds
+        self.cv_mae_scores: dict[str, float] = {}   # exposed to evaluator.py
+
+    def tune_all(self, X_train: pd.DataFrame, y_train: pd.Series,
+                 groups_train: pd.Series) -> dict[str, Pipeline]:
+        """
+        Tune all models with GroupKFold CV.
+
+        Args:
+            X_train       : Training feature matrix
+            y_train       : Training target (Efficiency kWh/kW)
+            groups_train  : ACCOUNT_NO Series aligned to X_train rows
+                            (returned by HouseholdSplitter.split)
+
+        Returns:
+            {model_name: best_fitted_pipeline}  - ready for predict() calls
+        """
+        print("\n" + "=" * 60)
+        print(f"HYPERPARAMETER TUNING  (GroupKFold, {self.n_folds} folds)")
+        print("=" * 60)
+
+        group_kfold  = GroupKFold(n_splits=self.n_folds)
+        tuned_models = {}
+
+        for i, (step_name, estimator, param_grid) in enumerate(_TUNING_CONFIGS, 1):
+            display_name = _MODEL_NAMES[step_name]
+            print(f"\n{i}. {display_name}...")
+
+            pipe = Pipeline([
+                ("scaler", StandardScaler()),
+                (step_name, estimator),
+            ])
+
+            grid = GridSearchCV(
+                pipe, param_grid,
+                cv=group_kfold,
+                scoring="neg_mean_absolute_error",
+                n_jobs=-1,
+            )
+            grid.fit(X_train, y_train, groups=groups_train)
+
+            best_cv_mae = -grid.best_score_
+            tuned_models[display_name]        = grid.best_estimator_
+            self.cv_mae_scores[display_name]  = best_cv_mae
+
+            print(f"   Best params : {grid.best_params_}")
+            print(f"   CV MAE      : {best_cv_mae:.4f} kWh/kW")
+
+        print(f"\n {len(tuned_models)} models tuned")
+        return tuned_models
