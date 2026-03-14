@@ -1,9 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
 # config.yaml — Solar ROI Pipeline Configuration
-#
-# Single source of truth for all constants used across:
-#   data_pipeline.py, feature_engineering.py, predict11.py,
-#   fetch_future_weather.py, utils/nasa_power.py
 # ═══════════════════════════════════════════════════════════════
 
 

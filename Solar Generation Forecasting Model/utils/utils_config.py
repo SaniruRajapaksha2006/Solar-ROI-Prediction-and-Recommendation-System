@@ -16,6 +16,7 @@ def load_config(path: str | Path = None) -> dict:
     if not target.exists():
         raise FileNotFoundError(
             f"config.yaml not found at: {target}\n"
+            "Make sure config.yaml is in the project root."
         )
     with open(target, "r") as f:
         return yaml.safe_load(f)
@@ -23,7 +24,8 @@ def load_config(path: str | Path = None) -> dict:
 
 def get_roi_constants() -> dict[str, Any]:
     """
-    Used by predict11.py and ROI calculation.
+    Return ROI/financial constants as a flat dict.
+    Used by predict.py and any ROI calculation.
 
     Returns:
         {
@@ -37,7 +39,7 @@ def get_roi_constants() -> dict[str, Any]:
 def get_physics_constants() -> dict[str, Any]:
     """
     Return solar physics constants.
-    Used by engineering.py and fetch_future_weather.py.
+    Used by feature_engineering.py and fetch_future_weather.py.
 
     Returns:
         {
@@ -52,7 +54,7 @@ def get_physics_constants() -> dict[str, Any]:
 
 def get_nasa_params() -> dict[str, str]:
     """
-    Return the NASA API key -> column name mapping.
-    Used by nasa_power.py, data_pipeline.py, missing.py.
+    Return the NASA API key → column name mapping.
+    Used by nasa_power.py, data_pipeline.py, handle_missing.py.
     """
     return load_config()["nasa"]["params"]
