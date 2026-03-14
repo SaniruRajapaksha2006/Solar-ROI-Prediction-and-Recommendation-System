@@ -1,19 +1,18 @@
 import streamlit as st
 import sys
 import os
+import plotly.graph_objects as go  # NEW: For our beautiful charts
 
 # ---------------------------------------------------------
-# ROBUST BACKEND CONNECTION (Adapted to your folder structure)
+# ROBUST BACKEND CONNECTION
 # ---------------------------------------------------------
-current_dir = os.path.dirname(os.path.abspath(__file__))  # The Frontend folder
-parent_dir = os.path.abspath(os.path.join(current_dir, '..'))  # The Root folder
-backend_dir = os.path.join(parent_dir, 'Backend')  # The Backend folder
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
+backend_dir = os.path.join(parent_dir, 'Backend')
 
-# Add the Backend folder to Python's system path so it can find financeml.py
 if backend_dir not in sys.path:
     sys.path.append(backend_dir)
 
-# Import the model exactly as it is named in your directory
 from financeml import SolarFinancialModel
 
 
@@ -82,18 +81,55 @@ if calculate_btn:
             with kpi_col4:
                 st.metric(label="Payback Period", value=f"{results['Expected_Payback_Years']} yrs")
             with kpi_col5:
-                # We show high/moderate certainty based on the risk profile
                 certainty = results['Risk_Analysis']['Certainty_Score']
                 st.metric(label="Risk Certainty", value=certainty)
 
             st.divider()
 
-            # --- SECTION 2: CHARTS SKELETON ---
+            # --- SECTION 2: CHARTS ---
             st.markdown("### 📈 Visual Risk & Cash Flow Analysis")
             tab1, tab2, tab3 = st.tabs(["Cumulative Cash Flow (Payback)", "Risk Distribution (NPV)", "Yearly Revenue"])
 
+            chart_data = results["Chart_Data"]
+            years = chart_data["Years_Labels_0_to_20"]
+
+            # NEW FOR COMMIT 18: PLOTLY CUMULATIVE CASH FLOW CHART
             with tab1:
-                st.write("*Line Chart Placeholder*")
+                fig_cf = go.Figure()
+
+                # P90 (Optimistic Bound) - Invisible line to set the top of the shading
+                fig_cf.add_trace(go.Scatter(
+                    x=years, y=chart_data["Cumulative_Cash_Flow_P90"],
+                    mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'
+                ))
+
+                # P10 (Pessimistic Bound) - Fills the area between P90 and P10
+                fig_cf.add_trace(go.Scatter(
+                    x=years, y=chart_data["Cumulative_Cash_Flow_P10"],
+                    mode='lines', line=dict(width=0),
+                    fill='tonexty', fillcolor='rgba(244, 96, 26, 0.15)',  # Light orange shading
+                    name='Confidence Band (P10-P90)'
+                ))
+
+                # Expected Cash Flow Line (Solid Line)
+                fig_cf.add_trace(go.Scatter(
+                    x=years, y=chart_data["Cumulative_Cash_Flow_Expected"],
+                    mode='lines+markers', line=dict(color='#f4601a', width=3),  # Kinetic Orange
+                    name='Expected Cumulative Cash Flow'
+                ))
+
+                # Break-even red dashed line at Y=0
+                fig_cf.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="Break-Even Point (Zero)")
+
+                fig_cf.update_layout(
+                    title="Cumulative Cash Flow over 20 Years",
+                    xaxis_title="Years",
+                    yaxis_title="Cumulative Cash (LKR)",
+                    hovermode="x unified"
+                )
+
+                st.plotly_chart(fig_cf, use_container_width=True)
+
             with tab2:
                 st.write("*Histogram Placeholder*")
             with tab3:
