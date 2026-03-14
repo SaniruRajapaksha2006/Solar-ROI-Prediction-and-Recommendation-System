@@ -30,3 +30,30 @@ models = {
     'Logistic Regression' : LogisticRegression(random_state=42, max_iter=1000),
     'Gradient Boosting'   : GradientBoostingClassifier(n_estimators=100, random_state=42),
 }
+
+print("=" * 65)
+print(f"{'Model':<25} {'CV Mean Accuracy':>18} {'Model Accuracy':>16} {'Verdict':>10}")
+print("=" * 65)
+
+results = []
+for name, model in models.items():
+    cv_scores    = cross_val_score(model, X_scaled, y, cv=5)
+    cv_mean      = cv_scores.mean() * 100
+
+    model.fit(X_scaled, y)
+    y_pred       = model.predict(X_scaled)
+    model_acc    = (y_pred == y).mean() * 100
+
+    if model_acc >= 90 and cv_mean >= 70:
+        verdict = 'Excellent'
+    elif model_acc >= 80 and cv_mean >= 60:
+        verdict = 'Good'
+    elif model_acc >= 70:
+        verdict = 'Fair'
+    else:
+        verdict = 'Poor'
+
+    results.append((name, cv_mean, model_acc, verdict))
+    print(f"{name:<25} {cv_mean:>17.2f}% {model_acc:>15.2f}% {verdict:>10}")
+
+print("=" * 65)
