@@ -1,7 +1,7 @@
 import streamlit as st
 import sys
 import os
-import plotly.graph_objects as go  # NEW: For our beautiful charts
+import plotly.graph_objects as go
 
 # ---------------------------------------------------------
 # ROBUST BACKEND CONNECTION
@@ -93,45 +93,40 @@ if calculate_btn:
             chart_data = results["Chart_Data"]
             years = chart_data["Years_Labels_0_to_20"]
 
-            # NEW FOR COMMIT 18: PLOTLY CUMULATIVE CASH FLOW CHART
             with tab1:
                 fig_cf = go.Figure()
-
-                # P90 (Optimistic Bound) - Invisible line to set the top of the shading
                 fig_cf.add_trace(go.Scatter(
                     x=years, y=chart_data["Cumulative_Cash_Flow_P90"],
                     mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'
                 ))
-
-                # P10 (Pessimistic Bound) - Fills the area between P90 and P10
                 fig_cf.add_trace(go.Scatter(
                     x=years, y=chart_data["Cumulative_Cash_Flow_P10"],
                     mode='lines', line=dict(width=0),
-                    fill='tonexty', fillcolor='rgba(244, 96, 26, 0.15)',  # Light orange shading
+                    fill='tonexty', fillcolor='rgba(244, 96, 26, 0.15)',
                     name='Confidence Band (P10-P90)'
                 ))
-
-                # Expected Cash Flow Line (Solid Line)
                 fig_cf.add_trace(go.Scatter(
                     x=years, y=chart_data["Cumulative_Cash_Flow_Expected"],
-                    mode='lines+markers', line=dict(color='#f4601a', width=3),  # Kinetic Orange
+                    mode='lines+markers', line=dict(color='#f4601a', width=3),
                     name='Expected Cumulative Cash Flow'
                 ))
-
-                # Break-even red dashed line at Y=0
                 fig_cf.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="Break-Even Point (Zero)")
-
-                fig_cf.update_layout(
-                    title="Cumulative Cash Flow over 20 Years",
-                    xaxis_title="Years",
-                    yaxis_title="Cumulative Cash (LKR)",
-                    hovermode="x unified"
-                )
-
+                fig_cf.update_layout(title="Cumulative Cash Flow over 20 Years", xaxis_title="Years",
+                                     yaxis_title="Cumulative Cash (LKR)", hovermode="x unified")
                 st.plotly_chart(fig_cf, use_container_width=True)
 
+            # NEW FOR COMMIT 19: BASIC NPV HISTOGRAM TRACE
             with tab2:
-                st.write("*Histogram Placeholder*")
+                fig_npv = go.Figure()
+                fig_npv.add_trace(go.Histogram(
+                    x=chart_data["Monte_Carlo_NPV_Distribution"],
+                    nbinsx=50,
+                    marker_color='#18a058',
+                    name='NPV Outcomes',
+                    opacity=0.75
+                ))
+                st.plotly_chart(fig_npv, use_container_width=True)
+
             with tab3:
                 st.write("*Bar Chart Placeholder*")
 
