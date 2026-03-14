@@ -28,3 +28,12 @@ y_pred = [1 if tf['score'] >= 60 else 0 for tf in results]
 
 print("\nGround truth (canSupport) :", y_true)
 print("Predicted   (score >= 60) :", y_pred)
+
+print("\n" + "=" * 55)
+print("    CLASSIFICATION REPORT — SUITABILITY SCORING")
+print("=" * 55)
+print(classification_report(
+    y_true, y_pred,
+    target_names=['Not Suitable', 'Suitable'],
+    zero_division=0
+))
