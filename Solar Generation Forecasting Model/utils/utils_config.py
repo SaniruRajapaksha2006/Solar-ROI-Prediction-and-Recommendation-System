@@ -37,7 +37,7 @@ def get_roi_constants() -> dict[str, Any]:
 def get_physics_constants() -> dict[str, Any]:
     """
     Return solar physics constants.
-    Used by feature_engineering.py and fetch_future_weather.py.
+    Used by engineering.py and fetch_future_weather.py.
 
     Returns:
         {
