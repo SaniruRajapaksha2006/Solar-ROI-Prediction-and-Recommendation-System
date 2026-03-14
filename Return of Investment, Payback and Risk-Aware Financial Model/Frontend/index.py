@@ -119,24 +119,17 @@ if calculate_btn:
                 fig_npv = go.Figure()
                 fig_npv.add_trace(go.Histogram(
                     x=chart_data["Monte_Carlo_NPV_Distribution"],
-                    nbinsx=50,
-                    marker_color='#18a058',
-                    name='NPV Outcomes',
-                    opacity=0.75
+                    nbinsx=50, marker_color='#18a058', name='NPV Outcomes', opacity=0.75
                 ))
                 fig_npv.add_vline(x=results["Expected_NPV_LKR"], line_dash="dash", line_color="darkred",
                                   annotation_text=f"Expected: LKR {results['Expected_NPV_LKR']:,.0f}",
                                   annotation_position="top right")
                 fig_npv.add_vline(x=0, line_dash="solid", line_color="black", line_width=2)
-                fig_npv.update_layout(
-                    title="Monte Carlo Risk Analysis: NPV Distribution (2000 Scenarios)",
-                    xaxis_title="Net Present Value (LKR)",
-                    yaxis_title="Frequency (Number of Scenarios)",
-                    bargap=0.1
-                )
+                fig_npv.update_layout(title="Monte Carlo Risk Analysis: NPV Distribution (2000 Scenarios)",
+                                      xaxis_title="Net Present Value (LKR)",
+                                      yaxis_title="Frequency (Number of Scenarios)", bargap=0.1)
                 st.plotly_chart(fig_npv, use_container_width=True)
 
-            # NEW FOR COMMIT 21: BASIC YEARLY REVENUE BAR CHART TRACE
             with tab3:
                 fig_rev = go.Figure()
                 fig_rev.add_trace(go.Bar(
@@ -145,6 +138,15 @@ if calculate_btn:
                     marker_color='#d97706',  # Kinetic Amber Theme Color
                     name='Annual Net Cashflow'
                 ))
+
+                # NEW FOR COMMIT 22: Layout, Titles, and X-Axis ticks
+                fig_rev.update_layout(
+                    title="Expected Annual Net Cashflow (With Degradation & Maintenance)",
+                    xaxis_title="Year",
+                    yaxis_title="Net Cashflow (LKR)",
+                    hovermode="x unified",
+                    xaxis=dict(tickmode='linear', dtick=1)  # Forces the chart to label every single year
+                )
 
                 st.plotly_chart(fig_rev, use_container_width=True)
 
