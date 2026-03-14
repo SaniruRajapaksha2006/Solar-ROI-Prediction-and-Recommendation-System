@@ -95,21 +95,15 @@ if calculate_btn:
 
             with tab1:
                 fig_cf = go.Figure()
-                fig_cf.add_trace(go.Scatter(
-                    x=years, y=chart_data["Cumulative_Cash_Flow_P90"],
-                    mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'
-                ))
-                fig_cf.add_trace(go.Scatter(
-                    x=years, y=chart_data["Cumulative_Cash_Flow_P10"],
-                    mode='lines', line=dict(width=0),
-                    fill='tonexty', fillcolor='rgba(244, 96, 26, 0.15)',
-                    name='Confidence Band (P10-P90)'
-                ))
-                fig_cf.add_trace(go.Scatter(
-                    x=years, y=chart_data["Cumulative_Cash_Flow_Expected"],
-                    mode='lines+markers', line=dict(color='#f4601a', width=3),
-                    name='Expected Cumulative Cash Flow'
-                ))
+                fig_cf.add_trace(
+                    go.Scatter(x=years, y=chart_data["Cumulative_Cash_Flow_P90"], mode='lines', line=dict(width=0),
+                               showlegend=False, hoverinfo='skip'))
+                fig_cf.add_trace(
+                    go.Scatter(x=years, y=chart_data["Cumulative_Cash_Flow_P10"], mode='lines', line=dict(width=0),
+                               fill='tonexty', fillcolor='rgba(244, 96, 26, 0.15)', name='Confidence Band (P10-P90)'))
+                fig_cf.add_trace(
+                    go.Scatter(x=years, y=chart_data["Cumulative_Cash_Flow_Expected"], mode='lines+markers',
+                               line=dict(color='#f4601a', width=3), name='Expected Cumulative Cash Flow'))
                 fig_cf.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="Break-Even Point (Zero)")
                 fig_cf.update_layout(title="Cumulative Cash Flow over 20 Years", xaxis_title="Years",
                                      yaxis_title="Cumulative Cash (LKR)", hovermode="x unified")
@@ -117,10 +111,9 @@ if calculate_btn:
 
             with tab2:
                 fig_npv = go.Figure()
-                fig_npv.add_trace(go.Histogram(
-                    x=chart_data["Monte_Carlo_NPV_Distribution"],
-                    nbinsx=50, marker_color='#18a058', name='NPV Outcomes', opacity=0.75
-                ))
+                fig_npv.add_trace(
+                    go.Histogram(x=chart_data["Monte_Carlo_NPV_Distribution"], nbinsx=50, marker_color='#18a058',
+                                 name='NPV Outcomes', opacity=0.75))
                 fig_npv.add_vline(x=results["Expected_NPV_LKR"], line_dash="dash", line_color="darkred",
                                   annotation_text=f"Expected: LKR {results['Expected_NPV_LKR']:,.0f}",
                                   annotation_position="top right")
@@ -132,32 +125,37 @@ if calculate_btn:
 
             with tab3:
                 fig_rev = go.Figure()
-                fig_rev.add_trace(go.Bar(
-                    x=years[1:],  # Ignore year 0 for revenue (starts at year 1)
-                    y=chart_data["Yearly_Revenue_Forecast"],
-                    marker_color='#d97706',  # Kinetic Amber Theme Color
-                    name='Annual Net Cashflow'
-                ))
-
-                # NEW FOR COMMIT 22: Layout, Titles, and X-Axis ticks
-                fig_rev.update_layout(
-                    title="Expected Annual Net Cashflow (With Degradation & Maintenance)",
-                    xaxis_title="Year",
-                    yaxis_title="Net Cashflow (LKR)",
-                    hovermode="x unified",
-                    xaxis=dict(tickmode='linear', dtick=1)  # Forces the chart to label every single year
-                )
-
+                fig_rev.add_trace(go.Bar(x=years[1:], y=chart_data["Yearly_Revenue_Forecast"], marker_color='#d97706',
+                                         name='Annual Net Cashflow'))
+                fig_rev.update_layout(title="Expected Annual Net Cashflow (With Degradation & Maintenance)",
+                                      xaxis_title="Year", yaxis_title="Net Cashflow (LKR)", hovermode="x unified",
+                                      xaxis=dict(tickmode='linear', dtick=1))
                 st.plotly_chart(fig_rev, use_container_width=True)
 
             st.divider()
 
-            # --- SECTION 3: BOTTOM ROW SKELETON ---
+            # --- SECTION 3: BOTTOM ROW ---
             bottom_col1, bottom_col2 = st.columns([1, 1])
 
             with bottom_col1:
                 st.markdown("### ⚠️ Scenario Analysis")
-                st.write("*Scenario Metrics Placeholder*")
+
+                # NEW FOR COMMIT 23: UI Layout Grid for Scenario Analysis
+                scen_col1, scen_col2 = st.columns(2)
+
+                with scen_col1:
+                    st.markdown("##### ROI Profiles")
+                    st.write("*Best Case Placeholder*")
+                    st.write("*Expected Placeholder*")
+                    st.write("*Worst Case Placeholder*")
+
+                with scen_col2:
+                    st.markdown("##### Payback & Risk")
+                    st.write("*Shortest Payback Placeholder*")
+                    st.write("*Longest Payback Placeholder*")
+                    st.write("*Win Probability Placeholder*")
+
+                st.write("")  # Spacer
                 st.write("*Recommendation Badge Placeholder*")
 
             with bottom_col2:
