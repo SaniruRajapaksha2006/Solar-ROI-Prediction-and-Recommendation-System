@@ -106,6 +106,19 @@ class FeatureEngineer:
         print("-" * 60)
         return df_feat
     
+    def create_target(self, df):
+        """
+        Create Efficiency target = EXPORT_kWh / INV_CAPACITY (kWh/kW).
+        """
+        print("\nCreating target...")
+        print("-" * 60)
+        df_feat = df.copy()
+        df_feat["Efficiency"] = (df_feat["EXPORT_kWh"] / df_feat["INV_CAPACITY"]).round(4)
+        print(f"  Efficiency  mean={df_feat['Efficiency'].mean():.2f}  "
+              f"min={df_feat['Efficiency'].min():.2f}  max={df_feat['Efficiency'].max():.2f}")
+        print("-" * 60)
+        return df_feat
+
     def create_system_features(self, df):
         """
         System-based features
@@ -151,29 +164,24 @@ class FeatureEngineer:
     
     def create_all_features(self, df):
         """
-        Create all engineered features
-        
-        Args:
-            df: DataFrame
-            
-        Returns:
-            DataFrame with all features
+        Create all engineered features.
         """
         print("\n" + "="*60)
         print("FEATURE ENGINEERING")
         print("="*60)
-        
+
         df_feat = df.copy()
-        
-        # Create features
         df_feat = self.create_temperature_features(df_feat)
         df_feat = self.create_cloud_features(df_feat)
         df_feat = self.create_temporal_features(df_feat)
         df_feat = self.create_system_features(df_feat)
-        
-        print(f"\n✓ Created {len(self.created_features)} features")
+
+        if "EXPORT_kWh" in df_feat.columns:
+            df_feat = self.create_target(df_feat)
+
+        print(f"\nCreated {len(self.created_features)} features")
         print("="*60)
-        
+
         return df_feat
     
     def get_feature_list(self):
