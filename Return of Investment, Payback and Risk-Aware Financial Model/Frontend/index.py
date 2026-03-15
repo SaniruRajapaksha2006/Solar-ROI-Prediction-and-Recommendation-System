@@ -69,7 +69,7 @@ st.markdown("""
         color: white !important;
     }
 
-    /* NEW FOR COMMIT 31: VENDOR CARD CSS (Pulled from your HTML mockup) */
+    /* VENDOR CARD CSS */
     .vendor-card {
         background-color: #ffffff;
         border: 1px solid #e0dbd0;
@@ -100,9 +100,43 @@ st.markdown("""
     .vendor-contact {
         font-family: 'Space Mono', monospace;
         font-weight: 700;
-        color: #18a058; /* Kinetic Green */
+        color: #18a058;
         font-size: 14px;
     }
+
+    /* NEW FOR COMMIT 32: SCENARIO ANALYSIS CSS */
+    .scen-card {
+        background-color: #ffffff;
+        border: 1px solid #e0dbd0;
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        margin-bottom: 16px;
+    }
+    .scen-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px dashed #e0dbd0;
+    }
+    .scen-row:last-child {
+        border-bottom: none;
+    }
+    .scen-lbl {
+        font-family: 'DM Sans', sans-serif;
+        font-weight: 600;
+        font-size: 14px;
+        color: #4b5563;
+    }
+    .scen-val {
+        font-family: 'Space Mono', monospace;
+        font-weight: 700;
+        font-size: 15px;
+    }
+    .val-green { color: #18a058; }
+    .val-orange { color: #f4601a; }
+    .val-red { color: #dc2626; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -236,17 +270,46 @@ if calculate_btn:
                 scen = results["Scenario_Analysis"]
                 risk = results["Risk_Analysis"]
 
+                # NEW FOR COMMIT 32: HTML/CSS Injection for Scenario Grids
                 with scen_col1:
-                    st.markdown("##### ROI Profiles")
-                    st.metric(label="Best Case ROI (P95)", value=f"{scen['Best_Case_ROI_Percent']}%")
-                    st.metric(label="Expected ROI (P50)", value=f"{results['Expected_ROI_Percent']}%")
-                    st.metric(label="Worst Case ROI (P05)", value=f"{risk['Worst_Case_ROI_Percent']}%")
+                    roi_html = f"""
+                    <div class="scen-card">
+                        <h5 style="margin-top:0; color:#1f2937; font-family:'Syne', sans-serif;">ROI Profiles</h5>
+                        <div class="scen-row">
+                            <span class="scen-lbl">Best Case ROI (P95)</span>
+                            <span class="scen-val val-green">{scen['Best_Case_ROI_Percent']}%</span>
+                        </div>
+                        <div class="scen-row">
+                            <span class="scen-lbl">Expected ROI (P50)</span>
+                            <span class="scen-val val-orange">{results['Expected_ROI_Percent']}%</span>
+                        </div>
+                        <div class="scen-row">
+                            <span class="scen-lbl">Worst Case ROI (P05)</span>
+                            <span class="scen-val val-red">{risk['Worst_Case_ROI_Percent']}%</span>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(roi_html, unsafe_allow_html=True)
 
                 with scen_col2:
-                    st.markdown("##### Payback & Risk")
-                    st.metric(label="Shortest Payback (P10)", value=f"{scen['Shortest_Payback_Years']} yrs")
-                    st.metric(label="Longest Payback (P95)", value=f"{risk['Worst_Case_Payback_Years']} yrs")
-                    st.metric(label="Win Probability (ROI > 0)", value=f"{scen['Probability_Positive_ROI']}%")
+                    payback_html = f"""
+                    <div class="scen-card">
+                        <h5 style="margin-top:0; color:#1f2937; font-family:'Syne', sans-serif;">Payback & Risk</h5>
+                        <div class="scen-row">
+                            <span class="scen-lbl">Shortest Payback (P10)</span>
+                            <span class="scen-val val-green">{scen['Shortest_Payback_Years']} yrs</span>
+                        </div>
+                        <div class="scen-row">
+                            <span class="scen-lbl">Longest Payback (P95)</span>
+                            <span class="scen-val val-red">{risk['Worst_Case_Payback_Years']} yrs</span>
+                        </div>
+                        <div class="scen-row">
+                            <span class="scen-lbl">Win Probability</span>
+                            <span class="scen-val val-green">{scen['Probability_Positive_ROI']}%</span>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(payback_html, unsafe_allow_html=True)
 
                 st.write("")
 
@@ -260,13 +323,11 @@ if calculate_btn:
                 else:
                     st.warning(f"**{rec_text}**")
 
-            # NEW FOR COMMIT 31: Injecting HTML/CSS for Vendor Cards
             with bottom_col2:
                 st.markdown("### 🏢 Local Vendor Recommendations")
                 st.write(f"Based on your location, here are reputed vendors for a **{system_size_kw}kW** system:")
 
                 for vendor in results["Recommended_Local_Vendors"]:
-                    # We inject the exact HTML structure from your mockup!
                     card_html = f"""
                     <div class="vendor-card">
                         <div class="vendor-info">
