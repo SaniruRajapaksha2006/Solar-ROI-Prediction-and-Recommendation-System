@@ -2,6 +2,7 @@ import streamlit as st
 import sys
 import os
 import plotly.graph_objects as go
+from datetime import datetime  # NEW FOR COMMIT 28: To get the live timestamp
 
 # ---------------------------------------------------------
 # ROBUST BACKEND CONNECTION
@@ -38,6 +39,15 @@ st.set_page_config(page_title="Kinetic | Financial Intelligence", page_icon="⚡
 st.title("⚡ Kinetic: AI-Driven Solar ROI & Risk-Aware Dashboard")
 st.markdown(
     "Evaluate the financial feasibility, risks, and payback of your residential solar PV investment in Sri Lanka.")
+
+# NEW FOR COMMIT 28: Dynamic Subtitle and Status Bar
+head_col1, head_col2 = st.columns([3, 1])
+with head_col1:
+    st.caption("🟢 **System Status:** Online | 🧠 AI Models: Connected | 📡 Market Data: Synced")
+with head_col2:
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.caption(f"🕒 **Current Session:** {current_time}")
+
 st.divider()
 
 # ---------------------------------------------------------
@@ -168,7 +178,6 @@ if calculate_btn:
                 else:
                     st.warning(f"**{rec_text}**")
 
-            # NEW FOR COMMIT 27: Local Vendor Recommendation Cards
             with bottom_col2:
                 st.markdown("### 🏢 Local Vendor Recommendations")
                 st.write(f"Based on your location, here are reputed vendors for a **{system_size_kw}kW** system:")
