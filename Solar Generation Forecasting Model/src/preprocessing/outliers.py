@@ -3,7 +3,10 @@ src/preprocessing/outliers.py
 IQR-based outlier removal on EXPORT_kWh, applied per month.
 """
 
+import numpy as np
 import pandas as pd
+
+from utils.utils_config import load_config
 
 
 MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun",
@@ -12,8 +15,10 @@ MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun",
 
 class OutlierRemover:
 
-    def __init__(self, iqr_threshold: float = 1.5):
-        self.iqr_threshold = iqr_threshold
+    def __init__(self, iqr_threshold: float = None):
+        cfg = load_config()["outlier_detection"]
+        self.iqr_threshold = iqr_threshold if iqr_threshold is not None \
+                             else cfg["iqr_threshold"]
 
     def remove(self, df: pd.DataFrame,
                column: str = "EXPORT_kWh") -> pd.DataFrame:
@@ -21,6 +26,7 @@ class OutlierRemover:
         Flag and remove IQR outliers in `column` for each month independently.
 
         Using per-month IQR avoids penalising the seasonality pattern — summer
+        months genuinely export more, so a global IQR would be too aggressive.
 
         Args:
             df     : DataFrame with Month and target column
