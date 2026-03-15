@@ -14,18 +14,15 @@ backend_dir = os.path.join(parent_dir, 'Backend')
 if backend_dir not in sys.path:
     sys.path.append(backend_dir)
 
-from financeml import SolarFinancialModel
+try:
+    from financial_controller import run_roi_analysis
+except ImportError:
+    from monte_carlo_engine import SolarFinancialModel
 
 
-@st.cache_resource
-def get_financial_model():
-    return SolarFinancialModel()
-
-
-def run_roi_analysis(size, gen, cons):
-    model = get_financial_model()
-    return model.calculate_financial_report(size, gen, cons)
-
+    def run_roi_analysis(size, gen, cons):
+        model = SolarFinancialModel()
+        return model.calculate_financial_report(size, gen, cons)
 
 # ---------------------------------------------------------
 # 1. PAGE CONFIGURATION
@@ -33,38 +30,32 @@ def run_roi_analysis(size, gen, cons):
 st.set_page_config(page_title="Kinetic | Financial Intelligence", page_icon="⚡", layout="wide",
                    initial_sidebar_state="expanded")
 
-# --- NEW FOR COMMIT 29: KINETIC CUSTOM CSS INJECTION ---
+# --- KINETIC CUSTOM CSS INJECTION ---
 st.markdown("""
 <style>
-    /* Import Google Fonts from your HTML mockup */
     @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
 
-    /* Global Background and Font (Matches --bg and --text) */
     .stApp {
         background-color: #f7f5f0;
         font-family: 'DM Sans', sans-serif;
         color: #1f2937;
     }
 
-    /* Sidebar Background (Matches --bg2) */
     [data-testid="stSidebar"] {
         background-color: #ede9e0;
     }
 
-    /* Headings Typography */
     h1, h2, h3, h4, h5, h6 {
         font-family: 'Syne', sans-serif !important;
         font-weight: 700 !important;
         color: #1f2937 !important;
     }
 
-    /* Metric Styling (Matches the Space Mono data font and Kinetic Orange) */
     [data-testid="stMetricValue"] {
         font-family: 'Space Mono', monospace !important;
         color: #f4601a !important;
     }
 
-    /* Primary Button Styling */
     div.stButton > button:first-child {
         background-color: #f4601a !important;
         color: white !important;
@@ -149,6 +140,7 @@ if calculate_btn:
             chart_data = results["Chart_Data"]
             years = chart_data["Years_Labels_0_to_20"]
 
+            # NEW FOR COMMIT 30: Transparent backgrounds & theme-matched fonts/grids
             with tab1:
                 fig_cf = go.Figure()
                 fig_cf.add_trace(
@@ -161,8 +153,16 @@ if calculate_btn:
                     go.Scatter(x=years, y=chart_data["Cumulative_Cash_Flow_Expected"], mode='lines+markers',
                                line=dict(color='#f4601a', width=3), name='Expected Cumulative Cash Flow'))
                 fig_cf.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="Break-Even Point (Zero)")
-                fig_cf.update_layout(title="Cumulative Cash Flow over 20 Years", xaxis_title="Years",
-                                     yaxis_title="Cumulative Cash (LKR)", hovermode="x unified")
+
+                fig_cf.update_layout(
+                    title="Cumulative Cash Flow over 20 Years", xaxis_title="Years",
+                    yaxis_title="Cumulative Cash (LKR)", hovermode="x unified",
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#1f2937', family="DM Sans")
+                )
+                fig_cf.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
+                fig_cf.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
+
                 st.plotly_chart(fig_cf, use_container_width=True)
 
             with tab2:
@@ -174,18 +174,32 @@ if calculate_btn:
                                   annotation_text=f"Expected: LKR {results['Expected_NPV_LKR']:,.0f}",
                                   annotation_position="top right")
                 fig_npv.add_vline(x=0, line_dash="solid", line_color="black", line_width=2)
-                fig_npv.update_layout(title="Monte Carlo Risk Analysis: NPV Distribution (2000 Scenarios)",
-                                      xaxis_title="Net Present Value (LKR)",
-                                      yaxis_title="Frequency (Number of Scenarios)", bargap=0.1)
+
+                fig_npv.update_layout(
+                    title="Monte Carlo Risk Analysis: NPV Distribution (2000 Scenarios)",
+                    xaxis_title="Net Present Value (LKR)", yaxis_title="Frequency", bargap=0.1,
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#1f2937', family="DM Sans")
+                )
+                fig_npv.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
+                fig_npv.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
+
                 st.plotly_chart(fig_npv, use_container_width=True)
 
             with tab3:
                 fig_rev = go.Figure()
                 fig_rev.add_trace(go.Bar(x=years[1:], y=chart_data["Yearly_Revenue_Forecast"], marker_color='#d97706',
                                          name='Annual Net Cashflow'))
-                fig_rev.update_layout(title="Expected Annual Net Cashflow (With Degradation & Maintenance)",
-                                      xaxis_title="Year", yaxis_title="Net Cashflow (LKR)", hovermode="x unified",
-                                      xaxis=dict(tickmode='linear', dtick=1))
+
+                fig_rev.update_layout(
+                    title="Expected Annual Net Cashflow (With Degradation & Maintenance)", xaxis_title="Year",
+                    yaxis_title="Net Cashflow (LKR)", hovermode="x unified", xaxis=dict(tickmode='linear', dtick=1),
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#1f2937', family="DM Sans")
+                )
+                fig_rev.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
+                fig_rev.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
+
                 st.plotly_chart(fig_rev, use_container_width=True)
 
             st.divider()
