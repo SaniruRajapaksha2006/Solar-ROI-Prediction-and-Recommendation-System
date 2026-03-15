@@ -51,40 +51,22 @@ st.markdown("""
         color: #1f2937 !important;
     }
 
-    /* NEW FOR COMMIT 33: TOP KPI STAT CARDS */
-    .stat-card {
-        background-color: #ffffff;
-        border: 1px solid #e0dbd0;
-        border-radius: 8px;
-        padding: 20px 16px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
-        text-align: center;
-        transition: transform 0.2s ease-in-out;
+    [data-testid="stMetricValue"] {
+        font-family: 'Space Mono', monospace !important;
+        color: #f4601a !important;
     }
-    .stat-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+
+    div.stButton > button:first-child {
+        background-color: #f4601a !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 4px !important;
+        font-family: 'Syne', sans-serif !important;
+        font-weight: 600 !important;
     }
-    .s-lbl {
-        font-family: 'DM Sans', sans-serif;
-        font-weight: 600;
-        font-size: 13px;
-        color: #6b7280;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 8px;
-    }
-    .s-val {
-        font-family: 'Space Mono', monospace;
-        font-weight: 700;
-        font-size: 28px;
-        color: #1f2937;
-    }
-    .s-sub {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 12px;
-        color: #9ca3af;
-        margin-top: 4px;
+    div.stButton > button:first-child:hover {
+        background-color: #d95316 !important;
+        color: white !important;
     }
 
     /* VENDOR CARD CSS */
@@ -155,6 +137,52 @@ st.markdown("""
     .val-green { color: #18a058; }
     .val-orange { color: #f4601a; }
     .val-red { color: #dc2626; }
+
+    /* TOP KPI STAT CARDS */
+    .stat-card {
+        background-color: #ffffff;
+        border: 1px solid #e0dbd0;
+        border-radius: 8px;
+        padding: 20px 16px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        text-align: center;
+        transition: transform 0.2s ease-in-out;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+    }
+    .s-lbl {
+        font-family: 'DM Sans', sans-serif;
+        font-weight: 600;
+        font-size: 13px;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+    .s-val {
+        font-family: 'Space Mono', monospace;
+        font-weight: 700;
+        font-size: 28px;
+        color: #1f2937;
+    }
+    .s-sub {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 12px;
+        color: #9ca3af;
+        margin-top: 4px;
+    }
+
+    /* NEW FOR COMMIT 34: STREAMLIT DE-BRANDING & LAYOUT POLISH */
+    #MainMenu {visibility: hidden;} /* Hides the hamburger menu */
+    header {visibility: hidden;}    /* Hides the top colored bar */
+    footer {visibility: hidden;}    /* Hides the "Made with Streamlit" footer */
+    .block-container {
+        padding-top: 2rem !important; /* Reduces the massive whitespace at the top */
+        padding-bottom: 2rem !important;
+        max-width: 1400px; /* Constrains the layout nicely on ultra-wide monitors */
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -203,7 +231,6 @@ if calculate_btn:
             st.success("✅ Financial Analysis Complete!")
 
 
-            # Helper function to format large numbers like in your HTML mockup (e.g., 1.5M)
             def format_currency(value):
                 if value >= 1000000:
                     return f"{value / 1000000:.2f}<span style='font-size:16px; color:#9ca3af;'>M</span>"
