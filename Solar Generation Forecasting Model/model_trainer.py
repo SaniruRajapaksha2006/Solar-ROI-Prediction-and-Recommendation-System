@@ -31,6 +31,65 @@ from src.training.saver import ModelSaver
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_PATH  = SCRIPT_DIR / "data" / "processed" / "final.csv"
 
+
+# -- Unified comparison table ---------------------------------------------------
+
+def comparison_table(
+    physics_mae:    float,
+    physics_rmse:    float,
+    physics_r2:     float,
+    physics_mape:     float,
+    similarity_metrics: dict,
+    ml_results:     pd.DataFrame,
+) -> None:
+    """
+    Print a single formatted table covering all three approaches.
+    Intended for direct inclusion in the thesis results chapter.
+
+    Approach order: Physics (deterministic) → Similarity (statistical) → ML (learned)
+    """
+    W = 78
+    print("\n" + "═" * W)
+    print("  THESIS MODEL COMPARISON TABLE")
+    print("  Target: Efficiency (kWh/kW)  |  Lower MAE = Better")
+    print("═" * W)
+    print(f"  {'Model':<22} {'Approach':<16} {'MAE':>8} {'RMSE':>8} "
+          f"{'R²':>7} {'MAPE%':>7}")
+    print("  " + "-" * (W - 2))
+
+    # Row 1 — Physics (deterministic)
+    print(f"  {'Physics Formula':<22} {'Deterministic':<16} "
+          f"{physics_mae:>8.4f} {physics_rmse:>8.4f} "
+          f"{physics_r2:>7.4f} {physics_mape:>7.2f}")
+
+    # Row 2 — Similarity matching (statistical)
+    sm = similarity_metrics
+    print(f"  {'SimilarityMatch':<22} {'Statistical':<16} "
+          f"{sm['MAE']:>8.4f} {sm['RMSE']:>8.4f} "
+          f"{sm['R²']:>7.4f} {sm['MAPE (%)']:>7.2f}")
+
+    # Rows 3+ — ML models (tuned)
+    print("  " + "-" * (W - 2))
+    for _, row in ml_results.iterrows():
+        flag = " ★" if row.name == ml_results.index[0] else ""
+        print(f"  {row['Model'] + flag:<22} {'ML (tuned)':<16} "
+              f"{row['Test MAE']:>8.4f} {row['RMSE']:>8.4f} "
+              f"{row['R²']:>7.4f} {row['MAPE (%)']:>7.2f}")
+
+    print("  " + "-" * (W - 2))
+
+    # Improvement summary
+    best_ml_mae = ml_results.iloc[0]["Test MAE"]
+    ml_vs_physics    = (physics_mae    - best_ml_mae) / physics_mae    * 100
+    ml_vs_similarity = (sm["MAE"]      - best_ml_mae) / sm["MAE"]      * 100
+
+    print(f"\n  Best ML vs Physics   : {ml_vs_physics:+.1f}% MAE improvement")
+    print(f"  Best ML vs Similarity: {ml_vs_similarity:+.1f}% MAE improvement")
+    print("═" * W)
+
+
+# -- Main training flow ---------------------------------------------------------
+
 def train() -> None:
     if not DATA_PATH.exists():
         raise FileNotFoundError(
@@ -101,6 +160,15 @@ def train() -> None:
         cv_mae_scores=tuner.cv_mae_scores,
     )
 
+    # -- 6. Thesis comparison table --------------------------------
+    comparison_table(
+        physics_mae=physics_mae,
+        physics_rmse=physics_rmse,
+        physics_r2=physics_r2,
+        physics_mape=physics_mape,
+        similarity_metrics=sim_metrics,
+        ml_results=ml_results,
+    )
 
     # -- 7. Save best ML model -------------------------------------
     best_name = ml_results.iloc[0]["Model"]

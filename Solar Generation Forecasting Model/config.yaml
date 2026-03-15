@@ -1,4 +1,4 @@
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 # config.yaml — Single source of truth for all constants
 #
 # Rules:
@@ -6,7 +6,7 @@
 #   - Python files read this; they never define magic numbers
 #   - Column lists live here because they are data decisions,
 #     not code logic — changing a column means editing this file
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 
 
 # -- Location ----------------------------------------------------
