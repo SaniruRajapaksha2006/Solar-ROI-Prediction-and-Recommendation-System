@@ -39,47 +39,6 @@ def load_css(file_name):
 css_path = os.path.join(current_dir, "style.css")
 load_css(css_path)
 
-# --- TEMPORARY INLINE CSS (Only Stat Cards remain to be migrated) ---
-st.markdown("""
-<style>
-    /* TOP KPI STAT CARDS */
-    .stat-card {
-        background-color: #ffffff;
-        border: 1px solid #e0dbd0;
-        border-radius: 8px;
-        padding: 20px 16px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
-        text-align: center;
-        transition: transform 0.2s ease-in-out;
-    }
-    .stat-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
-    }
-    .s-lbl {
-        font-family: 'DM Sans', sans-serif;
-        font-weight: 600;
-        font-size: 13px;
-        color: #6b7280;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 8px;
-    }
-    .s-val {
-        font-family: 'Space Mono', monospace;
-        font-weight: 700;
-        font-size: 28px;
-        color: #1f2937;
-    }
-    .s-sub {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 12px;
-        color: #9ca3af;
-        margin-top: 4px;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------------------------------------------------
 # 2. MAIN DASHBOARD HEADER
 # ---------------------------------------------------------
