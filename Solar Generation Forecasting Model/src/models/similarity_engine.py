@@ -27,3 +27,27 @@ class SimilarityEngine:
                                                  metric=self.metric)
         self._train_efficiency: np.ndarray | None = None
         self._is_fitted = False
+
+    # -- Fit -------------------------------------------------------------------
+
+    def fit(self, X_train: pd.DataFrame, y_train: pd.Series) -> "SimilarityEngine":
+        """
+        Memorise the training set.
+
+        Args:
+            X_train : Training features (must contain self._similarity_features)
+            y_train : Training target (Efficiency kWh/kW)
+
+        Returns:
+            self (for chaining)
+        """
+
+        X_scaled = self._scaler.fit_transform(X_train[self._similarity_features])
+        self._nn.fit(X_scaled)
+        self._train_efficiency = y_train.values
+        self._is_fitted = True
+
+        print(f"  SimilarityEngine fitted on {len(y_train):,} historical months")
+        print(f"  k={self.n_neighbors}  metric={self.metric}  "
+              f"features={self._similarity_features}")
+        return self
