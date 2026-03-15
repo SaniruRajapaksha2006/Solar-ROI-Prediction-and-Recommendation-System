@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # ---------------------------------------------------------
-# ROBUST BACKEND CONNECTION
+# ROBUST BACKEND CONNECTION 
 # ---------------------------------------------------------
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
@@ -39,79 +39,9 @@ def load_css(file_name):
 css_path = os.path.join(current_dir, "style.css")
 load_css(css_path)
 
-# --- TEMPORARY INLINE CSS (Vendor, Scenario, and Stat Cards left to migrate) ---
+# --- TEMPORARY INLINE CSS (Only Stat Cards remain to be migrated) ---
 st.markdown("""
 <style>
-    /* VENDOR CARD CSS */
-    .vendor-card {
-        background-color: #ffffff;
-        border: 1px solid #e0dbd0;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 12px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .vendor-info {
-        display: flex;
-        flex-direction: column;
-    }
-    .vendor-name {
-        font-family: 'Syne', sans-serif;
-        font-weight: 700;
-        font-size: 15px;
-        color: #1f2937;
-    }
-    .vendor-desc {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 12px;
-        color: #6b7280;
-        margin-top: 4px;
-    }
-    .vendor-contact {
-        font-family: 'Space Mono', monospace;
-        font-weight: 700;
-        color: #18a058;
-        font-size: 14px;
-    }
-
-    /* SCENARIO ANALYSIS CSS */
-    .scen-card {
-        background-color: #ffffff;
-        border: 1px solid #e0dbd0;
-        border-radius: 8px;
-        padding: 16px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-    }
-    .scen-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 0;
-        border-bottom: 1px dashed #e0dbd0;
-    }
-    .scen-row:last-child {
-        border-bottom: none;
-    }
-    .scen-lbl {
-        font-family: 'DM Sans', sans-serif;
-        font-weight: 600;
-        font-size: 14px;
-        color: #4b5563;
-    }
-    .scen-val {
-        font-family: 'Space Mono', monospace;
-        font-weight: 700;
-        font-size: 15px;
-        color: #9ca3af; 
-    }
-    .val-green { color: #18a058; }
-    .val-orange { color: #f4601a; }
-    .val-red { color: #dc2626; }
-
     /* TOP KPI STAT CARDS */
     .stat-card {
         background-color: #ffffff;
