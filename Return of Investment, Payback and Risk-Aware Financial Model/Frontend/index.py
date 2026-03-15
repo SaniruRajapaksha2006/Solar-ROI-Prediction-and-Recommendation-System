@@ -25,16 +25,25 @@ except ImportError:
         return model.calculate_financial_report(size, gen, cons)
 
 # ---------------------------------------------------------
-# 1. PAGE CONFIGURATION
+# 1. PAGE CONFIGURATION & CSS LOADER
 # ---------------------------------------------------------
 st.set_page_config(page_title="Kinetic | Financial Intelligence", page_icon="⚡", layout="wide",
                    initial_sidebar_state="expanded")
 
-# --- KINETIC CUSTOM CSS INJECTION ---
+
+# NEW FOR COMMIT 36: Clean Python function to load external CSS
+def load_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+
+# Call the function to load the new style.css file
+css_path = os.path.join(current_dir, "style.css")
+load_css(css_path)
+
+# --- TEMPORARY INLINE CSS (We will migrate this out in the next commits) ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
-
     .stApp {
         background-color: #f7f5f0;
         font-family: 'DM Sans', sans-serif;
@@ -133,6 +142,7 @@ st.markdown("""
         font-family: 'Space Mono', monospace;
         font-weight: 700;
         font-size: 15px;
+        color: #9ca3af; 
     }
     .val-green { color: #18a058; }
     .val-orange { color: #f4601a; }
@@ -174,14 +184,14 @@ st.markdown("""
         margin-top: 4px;
     }
 
-    /* NEW FOR COMMIT 34: STREAMLIT DE-BRANDING & LAYOUT POLISH */
-    #MainMenu {visibility: hidden;} /* Hides the hamburger menu */
-    header {visibility: hidden;}    /* Hides the top colored bar */
-    footer {visibility: hidden;}    /* Hides the "Made with Streamlit" footer */
+    /* STREAMLIT DE-BRANDING & LAYOUT POLISH */
+    #MainMenu {visibility: hidden;} 
+    header {visibility: hidden;}    
+    footer {visibility: hidden;}    
     .block-container {
-        padding-top: 2rem !important; /* Reduces the massive whitespace at the top */
+        padding-top: 2rem !important; 
         padding-bottom: 2rem !important;
-        max-width: 1400px; /* Constrains the layout nicely on ultra-wide monitors */
+        max-width: 1400px; 
     }
 </style>
 """, unsafe_allow_html=True)
@@ -424,5 +434,73 @@ if calculate_btn:
                     """
                     st.markdown(card_html, unsafe_allow_html=True)
 
+# ---------------------------------------------------------
+# 5. EMPTY STATE DASHBOARD (Before click)
+# ---------------------------------------------------------
 else:
-    st.info("👈 Please adjust the parameters in the sidebar and click **Run Financial Simulation**.")
+    st.info(
+        "👈 **Welcome to Kinetic!** Adjust your system parameters in the sidebar and click **Run Financial Simulation** to generate your personalized report.")
+
+    st.markdown("### 📊 Expected Financial Outcomes")
+    kpi_col1, kpi_col2, kpi_col3, kpi_col4, kpi_col5 = st.columns(5)
+    with kpi_col1:
+        st.markdown(
+            """<div class="stat-card" style="border-top: 4px solid #1f2937;"><div class="s-lbl">Total Investment</div><div class="s-val">---</div><div class="s-sub">CAPEX (LKR)</div></div>""",
+            unsafe_allow_html=True)
+    with kpi_col2:
+        st.markdown(
+            """<div class="stat-card" style="border-top: 4px solid #18a058;"><div class="s-lbl">Expected NPV</div><div class="s-val">---</div><div class="s-sub">Discounted (LKR)</div></div>""",
+            unsafe_allow_html=True)
+    with kpi_col3:
+        st.markdown(
+            """<div class="stat-card" style="border-top: 4px solid #f4601a;"><div class="s-lbl">Expected ROI</div><div class="s-val">---</div><div class="s-sub">Over 20 Years</div></div>""",
+            unsafe_allow_html=True)
+    with kpi_col4:
+        st.markdown(
+            """<div class="stat-card" style="border-top: 4px solid #d97706;"><div class="s-lbl">Payback Period</div><div class="s-val">---</div><div class="s-sub">Break-Even Point</div></div>""",
+            unsafe_allow_html=True)
+    with kpi_col5:
+        st.markdown(
+            """<div class="stat-card" style="border-top: 4px solid #9ca3af;"><div class="s-lbl">Risk Certainty</div><div class="s-val" style="color: #9ca3af;">---</div><div class="s-sub">Based on Monte Carlo</div></div>""",
+            unsafe_allow_html=True)
+
+    st.divider()
+
+    st.markdown("### 📈 Visual Risk & Cash Flow Analysis")
+    tab1, tab2, tab3 = st.tabs(["Cumulative Cash Flow (Payback)", "Risk Distribution (NPV)", "Yearly Revenue"])
+
+    empty_fig = go.Figure()
+    empty_fig.update_layout(
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        annotations=[dict(text="Awaiting Simulation Data...", xref="paper", yref="paper", showarrow=False,
+                          font=dict(size=18, color="#9ca3af", family="DM Sans"))]
+    )
+
+    with tab1:
+        st.plotly_chart(empty_fig, use_container_width=True)
+    with tab2:
+        st.plotly_chart(empty_fig, use_container_width=True)
+    with tab3:
+        st.plotly_chart(empty_fig, use_container_width=True)
+
+    st.divider()
+
+    bottom_col1, bottom_col2 = st.columns([1, 1])
+    with bottom_col1:
+        st.markdown("### ⚠️ Scenario Analysis")
+        scen_col1, scen_col2 = st.columns(2)
+        with scen_col1:
+            st.markdown(
+                """<div class="scen-card"><h5 style="margin-top:0; color:#1f2937; font-family:'Syne', sans-serif;">ROI Profiles</h5><div class="scen-row"><span class="scen-lbl">Best Case ROI (P95)</span><span class="scen-val">---</span></div><div class="scen-row"><span class="scen-lbl">Expected ROI (P50)</span><span class="scen-val">---</span></div><div class="scen-row"><span class="scen-lbl">Worst Case ROI (P05)</span><span class="scen-val">---</span></div></div>""",
+                unsafe_allow_html=True)
+        with scen_col2:
+            st.markdown(
+                """<div class="scen-card"><h5 style="margin-top:0; color:#1f2937; font-family:'Syne', sans-serif;">Payback & Risk</h5><div class="scen-row"><span class="scen-lbl">Shortest Payback (P10)</span><span class="scen-val">---</span></div><div class="scen-row"><span class="scen-lbl">Longest Payback (P95)</span><span class="scen-val">---</span></div><div class="scen-row"><span class="scen-lbl">Win Probability</span><span class="scen-val">---</span></div></div>""",
+                unsafe_allow_html=True)
+    with bottom_col2:
+        st.markdown("### 🏢 Local Vendor Recommendations")
+        st.markdown(
+            """<div class="vendor-card"><div class="vendor-info"><div class="vendor-name" style="color: #9ca3af;">Awaiting Simulation Data</div><div class="vendor-desc">Run simulation to see certified local vendors</div></div></div>""",
+            unsafe_allow_html=True)

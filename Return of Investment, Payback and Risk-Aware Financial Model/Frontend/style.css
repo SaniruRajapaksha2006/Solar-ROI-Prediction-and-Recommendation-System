@@ -1,0 +1,7 @@
+/* * KINETIC DASHBOARD STYLESHEET
+ * This file contains all the custom CSS for the Streamlit application.
+ * Migrating styles here ensures index.py remains clean and pure Python.
+ */
+
+/* 1. Global Typography Imports */
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
