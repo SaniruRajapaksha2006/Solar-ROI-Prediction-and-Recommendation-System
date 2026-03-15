@@ -1,3 +1,32 @@
+"""
+Similarity Matching Model — a statistical (non-ML) approach that predicts
+solar Efficiency by finding the most historically similar weather months.
+
+How it works
+-------------
+1. FIT   : Stores the training set (historical months with known Efficiency).
+2. PREDICT: For each query row (future weather month), computes Euclidean
+            distance against all historical rows using the 3 key weather
+            signals: GHI, Temperature, Cloud_Factor.
+3. RESULT : Predicted Efficiency = mean Efficiency of the k nearest neighbours.
+
+Why these 3 features?
+  GHI          — primary driver of solar generation
+  Temperature  — degrades panel efficiency via temperature coefficient
+  Cloud_Factor — captures cloud cover independently of GHI magnitude
+
+If it performs well, it shows the historical data has
+strong self-similarity. If ML beats it, it proves ML captures interactions
+that simple distance cannot.
+
+Comparison table position (thesis results chapter):
+  Method            | Approach      | Expected MAE | Key claim
+  ------------------┼---------------┼--------------┼--------------------------
+  Physics Formula   | Deterministic | Highest      | GHI × 0.80 × days
+  Similarity Match  | Statistical   | Medium       | Historical analogue search
+  ML (best model)   | Learned       | Lowest       | Non-linear feature weights
+"""
+
 import numpy as np
 import pandas as pd
 from sklearn.neighbors import NearestNeighbors
@@ -12,6 +41,11 @@ def _sim_cfg() -> dict:
 
 
 class SimilarityEngine:
+    """
+    K-Nearest Neighbours similarity model for solar Efficiency prediction.
+
+    """
+
     def __init__(self, n_neighbors: int = None, metric: str = None):
         """
         Args:
@@ -41,6 +75,7 @@ class SimilarityEngine:
         Returns:
             self (for chaining)
         """
+        self._validate_features(X_train)
 
         X_scaled = self._scaler.fit_transform(X_train[self._similarity_features])
         self._nn.fit(X_scaled)
@@ -72,6 +107,7 @@ class SimilarityEngine:
         if not self._is_fitted:
             raise RuntimeError("Call fit() before predict().")
 
+        self._validate_features(X)
 
         X_scaled             = self._scaler.transform(X[self._similarity_features])
         distances, indices   = self._nn.kneighbors(X_scaled)
@@ -103,6 +139,7 @@ class SimilarityEngine:
         if not self._is_fitted:
             raise RuntimeError("Call fit() before predict_with_details().")
 
+        self._validate_features(X)
         X_scaled           = self._scaler.transform(X[self._similarity_features])
         distances, indices = self._nn.kneighbors(X_scaled)
 
@@ -157,3 +194,13 @@ class SimilarityEngine:
             "R²":       round(r2, 4),
             "MAPE (%)": round(mape, 2),
         }
+
+    # -- Private ---------------------------------------------------------------
+
+    def _validate_features(self, X: pd.DataFrame) -> None:
+        missing = set(self._similarity_features) - set(X.columns)
+        if missing:
+            raise ValueError(
+                f"SimilarityEngine requires these features: {self._similarity_features}\n"
+                f"Missing from input: {missing}"
+            )
