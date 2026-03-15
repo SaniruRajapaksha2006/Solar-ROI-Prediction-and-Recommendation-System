@@ -68,6 +68,41 @@ st.markdown("""
         background-color: #d95316 !important;
         color: white !important;
     }
+
+    /* NEW FOR COMMIT 31: VENDOR CARD CSS (Pulled from your HTML mockup) */
+    .vendor-card {
+        background-color: #ffffff;
+        border: 1px solid #e0dbd0;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .vendor-info {
+        display: flex;
+        flex-direction: column;
+    }
+    .vendor-name {
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+        font-size: 15px;
+        color: #1f2937;
+    }
+    .vendor-desc {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 12px;
+        color: #6b7280;
+        margin-top: 4px;
+    }
+    .vendor-contact {
+        font-family: 'Space Mono', monospace;
+        font-weight: 700;
+        color: #18a058; /* Kinetic Green */
+        font-size: 14px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -140,7 +175,6 @@ if calculate_btn:
             chart_data = results["Chart_Data"]
             years = chart_data["Years_Labels_0_to_20"]
 
-            # NEW FOR COMMIT 30: Transparent backgrounds & theme-matched fonts/grids
             with tab1:
                 fig_cf = go.Figure()
                 fig_cf.add_trace(
@@ -153,16 +187,12 @@ if calculate_btn:
                     go.Scatter(x=years, y=chart_data["Cumulative_Cash_Flow_Expected"], mode='lines+markers',
                                line=dict(color='#f4601a', width=3), name='Expected Cumulative Cash Flow'))
                 fig_cf.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="Break-Even Point (Zero)")
-
-                fig_cf.update_layout(
-                    title="Cumulative Cash Flow over 20 Years", xaxis_title="Years",
-                    yaxis_title="Cumulative Cash (LKR)", hovermode="x unified",
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#1f2937', family="DM Sans")
-                )
+                fig_cf.update_layout(title="Cumulative Cash Flow over 20 Years", xaxis_title="Years",
+                                     yaxis_title="Cumulative Cash (LKR)", hovermode="x unified",
+                                     paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                     font=dict(color='#1f2937', family="DM Sans"))
                 fig_cf.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
                 fig_cf.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
-
                 st.plotly_chart(fig_cf, use_container_width=True)
 
             with tab2:
@@ -174,32 +204,24 @@ if calculate_btn:
                                   annotation_text=f"Expected: LKR {results['Expected_NPV_LKR']:,.0f}",
                                   annotation_position="top right")
                 fig_npv.add_vline(x=0, line_dash="solid", line_color="black", line_width=2)
-
-                fig_npv.update_layout(
-                    title="Monte Carlo Risk Analysis: NPV Distribution (2000 Scenarios)",
-                    xaxis_title="Net Present Value (LKR)", yaxis_title="Frequency", bargap=0.1,
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#1f2937', family="DM Sans")
-                )
+                fig_npv.update_layout(title="Monte Carlo Risk Analysis: NPV Distribution (2000 Scenarios)",
+                                      xaxis_title="Net Present Value (LKR)", yaxis_title="Frequency", bargap=0.1,
+                                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                      font=dict(color='#1f2937', family="DM Sans"))
                 fig_npv.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
                 fig_npv.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
-
                 st.plotly_chart(fig_npv, use_container_width=True)
 
             with tab3:
                 fig_rev = go.Figure()
                 fig_rev.add_trace(go.Bar(x=years[1:], y=chart_data["Yearly_Revenue_Forecast"], marker_color='#d97706',
                                          name='Annual Net Cashflow'))
-
-                fig_rev.update_layout(
-                    title="Expected Annual Net Cashflow (With Degradation & Maintenance)", xaxis_title="Year",
-                    yaxis_title="Net Cashflow (LKR)", hovermode="x unified", xaxis=dict(tickmode='linear', dtick=1),
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#1f2937', family="DM Sans")
-                )
+                fig_rev.update_layout(title="Expected Annual Net Cashflow (With Degradation & Maintenance)",
+                                      xaxis_title="Year", yaxis_title="Net Cashflow (LKR)", hovermode="x unified",
+                                      xaxis=dict(tickmode='linear', dtick=1), paper_bgcolor='rgba(0,0,0,0)',
+                                      plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1f2937', family="DM Sans"))
                 fig_rev.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
                 fig_rev.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#e0dbd0')
-
                 st.plotly_chart(fig_rev, use_container_width=True)
 
             st.divider()
@@ -238,15 +260,23 @@ if calculate_btn:
                 else:
                     st.warning(f"**{rec_text}**")
 
+            # NEW FOR COMMIT 31: Injecting HTML/CSS for Vendor Cards
             with bottom_col2:
                 st.markdown("### 🏢 Local Vendor Recommendations")
                 st.write(f"Based on your location, here are reputed vendors for a **{system_size_kw}kW** system:")
 
                 for vendor in results["Recommended_Local_Vendors"]:
-                    with st.container(border=True):
-                        st.markdown(f"**{vendor['Name']}**")
-                        st.markdown(f"📍 {vendor['Location']} | 📞 {vendor['Contact']}")
-                        st.caption(f"Specialty: {vendor['Specialty']}")
+                    # We inject the exact HTML structure from your mockup!
+                    card_html = f"""
+                    <div class="vendor-card">
+                        <div class="vendor-info">
+                            <div class="vendor-name">{vendor['Name']}</div>
+                            <div class="vendor-desc">📍 {vendor['Location']} &nbsp;|&nbsp; {vendor['Specialty']}</div>
+                        </div>
+                        <div class="vendor-contact">📞 {vendor['Contact']}</div>
+                    </div>
+                    """
+                    st.markdown(card_html, unsafe_allow_html=True)
 
 else:
     st.info("👈 Please adjust the parameters in the sidebar and click **Run Financial Simulation**.")
