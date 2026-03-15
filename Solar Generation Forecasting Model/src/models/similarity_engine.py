@@ -124,3 +124,36 @@ class SimilarityEngine:
             rows.append(row)
 
         return pd.DataFrame(rows)
+
+    # -- Evaluate --------------------------------------------------------------
+
+    def evaluate(self, X_test: pd.DataFrame,
+                 y_test: pd.Series) -> dict:
+        """
+        Score the model on a test set.
+
+        Args:
+            X_test : Test features
+            y_test : True Efficiency values
+
+        Returns:
+            dict with MAE, RMSE, R², MAPE
+        """
+        preds = self.predict(X_test)
+
+        mae  = mean_absolute_error(y_test, preds)
+        rmse = np.sqrt(mean_squared_error(y_test, preds))
+        r2   = r2_score(y_test, preds)
+        mape = np.mean(
+            np.abs((y_test.values - preds) /
+                   np.where(y_test.values == 0, np.nan, y_test.values))
+        ) * 100
+
+        return {
+            "Model":    "SimilarityMatch",
+            "Approach": "Statistical",
+            "MAE":      round(mae, 4),
+            "RMSE":     round(rmse, 4),
+            "R²":       round(r2, 4),
+            "MAPE (%)": round(mape, 2),
+        }
