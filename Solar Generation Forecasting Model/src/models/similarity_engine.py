@@ -82,3 +82,45 @@ class SimilarityEngine:
             for idx in indices
         ])
         return predictions
+
+    def predict_with_details(self, X: pd.DataFrame,
+                             X_train_ref: pd.DataFrame = None) -> pd.DataFrame:
+        """
+        Predict and return a detailed DataFrame showing which historical
+        months were matched for each query
+
+        Args:
+            X           : Query rows
+            X_train_ref : Original training DataFrame to show matched rows.
+                          Pass None to skip details.
+
+        Returns:
+            DataFrame with columns:
+                query_idx, predicted_Efficiency,
+                neighbour_1_idx, neighbour_1_dist, neighbour_1_Efficiency,
+                ... (repeated for each neighbour)
+        """
+        if not self._is_fitted:
+            raise RuntimeError("Call fit() before predict_with_details().")
+
+        X_scaled           = self._scaler.transform(X[self._similarity_features])
+        distances, indices = self._nn.kneighbors(X_scaled)
+
+        rows = []
+        for q_i, (dists, idxs) in enumerate(zip(distances, indices)):
+            row = {
+                "query_idx":            q_i,
+                "predicted_Efficiency": self._train_efficiency[idxs].mean().round(4),
+            }
+            for rank, (d, idx) in enumerate(zip(dists, idxs), 1):
+                row[f"match_{rank}_train_idx"]  = idx
+                row[f"match_{rank}_distance"]   = round(d, 4)
+                row[f"match_{rank}_Efficiency"] = round(self._train_efficiency[idx], 4)
+                if X_train_ref is not None:
+                    for feat in self._similarity_features:
+                        row[f"match_{rank}_{feat}"] = round(
+                            X_train_ref.iloc[idx][feat], 4
+                        )
+            rows.append(row)
+
+        return pd.DataFrame(rows)
