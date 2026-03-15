@@ -51,22 +51,40 @@ st.markdown("""
         color: #1f2937 !important;
     }
 
-    [data-testid="stMetricValue"] {
-        font-family: 'Space Mono', monospace !important;
-        color: #f4601a !important;
+    /* NEW FOR COMMIT 33: TOP KPI STAT CARDS */
+    .stat-card {
+        background-color: #ffffff;
+        border: 1px solid #e0dbd0;
+        border-radius: 8px;
+        padding: 20px 16px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        text-align: center;
+        transition: transform 0.2s ease-in-out;
     }
-
-    div.stButton > button:first-child {
-        background-color: #f4601a !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 4px !important;
-        font-family: 'Syne', sans-serif !important;
-        font-weight: 600 !important;
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
     }
-    div.stButton > button:first-child:hover {
-        background-color: #d95316 !important;
-        color: white !important;
+    .s-lbl {
+        font-family: 'DM Sans', sans-serif;
+        font-weight: 600;
+        font-size: 13px;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+    .s-val {
+        font-family: 'Space Mono', monospace;
+        font-weight: 700;
+        font-size: 28px;
+        color: #1f2937;
+    }
+    .s-sub {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 12px;
+        color: #9ca3af;
+        margin-top: 4px;
     }
 
     /* VENDOR CARD CSS */
@@ -104,7 +122,7 @@ st.markdown("""
         font-size: 14px;
     }
 
-    /* NEW FOR COMMIT 32: SCENARIO ANALYSIS CSS */
+    /* SCENARIO ANALYSIS CSS */
     .scen-card {
         background-color: #ffffff;
         border: 1px solid #e0dbd0;
@@ -184,21 +202,62 @@ if calculate_btn:
         else:
             st.success("✅ Financial Analysis Complete!")
 
+
+            # Helper function to format large numbers like in your HTML mockup (e.g., 1.5M)
+            def format_currency(value):
+                if value >= 1000000:
+                    return f"{value / 1000000:.2f}<span style='font-size:16px; color:#9ca3af;'>M</span>"
+                elif value >= 1000:
+                    return f"{value / 1000:.1f}<span style='font-size:16px; color:#9ca3af;'>K</span>"
+                return f"{value:,.0f}"
+
+
             # --- SECTION 1: TOP KPI METRICS ---
             st.markdown("### 📊 Expected Financial Outcomes")
             kpi_col1, kpi_col2, kpi_col3, kpi_col4, kpi_col5 = st.columns(5)
 
             with kpi_col1:
-                st.metric(label="Total Investment (CAPEX)", value=f"LKR {results['Total_Investment_LKR']:,.0f}")
+                st.markdown(f"""
+                <div class="stat-card" style="border-top: 4px solid #1f2937;">
+                    <div class="s-lbl">Total Investment</div>
+                    <div class="s-val">{format_currency(results['Total_Investment_LKR'])}</div>
+                    <div class="s-sub">CAPEX (LKR)</div>
+                </div>
+                """, unsafe_allow_html=True)
             with kpi_col2:
-                st.metric(label="Expected NPV", value=f"LKR {results['Expected_NPV_LKR']:,.0f}")
+                st.markdown(f"""
+                <div class="stat-card" style="border-top: 4px solid #18a058;">
+                    <div class="s-lbl">Expected NPV</div>
+                    <div class="s-val">{format_currency(results['Expected_NPV_LKR'])}</div>
+                    <div class="s-sub">Discounted (LKR)</div>
+                </div>
+                """, unsafe_allow_html=True)
             with kpi_col3:
-                st.metric(label="Expected ROI", value=f"{results['Expected_ROI_Percent']}%")
+                st.markdown(f"""
+                <div class="stat-card" style="border-top: 4px solid #f4601a;">
+                    <div class="s-lbl">Expected ROI</div>
+                    <div class="s-val">{results['Expected_ROI_Percent']}<span style='font-size:16px; color:#9ca3af;'>%</span></div>
+                    <div class="s-sub">Over 20 Years</div>
+                </div>
+                """, unsafe_allow_html=True)
             with kpi_col4:
-                st.metric(label="Payback Period", value=f"{results['Expected_Payback_Years']} yrs")
+                st.markdown(f"""
+                <div class="stat-card" style="border-top: 4px solid #d97706;">
+                    <div class="s-lbl">Payback Period</div>
+                    <div class="s-val">{results['Expected_Payback_Years']}<span style='font-size:16px; color:#9ca3af;'>Yrs</span></div>
+                    <div class="s-sub">Break-Even Point</div>
+                </div>
+                """, unsafe_allow_html=True)
             with kpi_col5:
                 certainty = results['Risk_Analysis']['Certainty_Score']
-                st.metric(label="Risk Certainty", value=certainty)
+                color = "#18a058" if certainty == "High" else "#dc2626"
+                st.markdown(f"""
+                <div class="stat-card" style="border-top: 4px solid {color};">
+                    <div class="s-lbl">Risk Certainty</div>
+                    <div class="s-val" style="color: {color};">{certainty}</div>
+                    <div class="s-sub">Based on Monte Carlo</div>
+                </div>
+                """, unsafe_allow_html=True)
 
             st.divider()
 
@@ -270,7 +329,6 @@ if calculate_btn:
                 scen = results["Scenario_Analysis"]
                 risk = results["Risk_Analysis"]
 
-                # NEW FOR COMMIT 32: HTML/CSS Injection for Scenario Grids
                 with scen_col1:
                     roi_html = f"""
                     <div class="scen-card">
