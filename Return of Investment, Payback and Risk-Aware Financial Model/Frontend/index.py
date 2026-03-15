@@ -31,53 +31,17 @@ st.set_page_config(page_title="Kinetic | Financial Intelligence", page_icon="⚡
                    initial_sidebar_state="expanded")
 
 
-# NEW FOR COMMIT 36: Clean Python function to load external CSS
 def load_css(file_name):
     with open(file_name) as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 
-# Call the function to load the new style.css file
 css_path = os.path.join(current_dir, "style.css")
 load_css(css_path)
 
-# --- TEMPORARY INLINE CSS (We will migrate this out in the next commits) ---
+# --- TEMPORARY INLINE CSS (Vendor, Scenario, and Stat Cards left to migrate) ---
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #f7f5f0;
-        font-family: 'DM Sans', sans-serif;
-        color: #1f2937;
-    }
-
-    [data-testid="stSidebar"] {
-        background-color: #ede9e0;
-    }
-
-    h1, h2, h3, h4, h5, h6 {
-        font-family: 'Syne', sans-serif !important;
-        font-weight: 700 !important;
-        color: #1f2937 !important;
-    }
-
-    [data-testid="stMetricValue"] {
-        font-family: 'Space Mono', monospace !important;
-        color: #f4601a !important;
-    }
-
-    div.stButton > button:first-child {
-        background-color: #f4601a !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 4px !important;
-        font-family: 'Syne', sans-serif !important;
-        font-weight: 600 !important;
-    }
-    div.stButton > button:first-child:hover {
-        background-color: #d95316 !important;
-        color: white !important;
-    }
-
     /* VENDOR CARD CSS */
     .vendor-card {
         background-color: #ffffff;
@@ -182,16 +146,6 @@ st.markdown("""
         font-size: 12px;
         color: #9ca3af;
         margin-top: 4px;
-    }
-
-    /* STREAMLIT DE-BRANDING & LAYOUT POLISH */
-    #MainMenu {visibility: hidden;} 
-    header {visibility: hidden;}    
-    footer {visibility: hidden;}    
-    .block-container {
-        padding-top: 2rem !important; 
-        padding-bottom: 2rem !important;
-        max-width: 1400px; 
     }
 </style>
 """, unsafe_allow_html=True)
