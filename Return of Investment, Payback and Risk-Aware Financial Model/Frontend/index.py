@@ -2,7 +2,7 @@ import streamlit as st
 import sys
 import os
 import plotly.graph_objects as go
-from datetime import datetime  # NEW FOR COMMIT 28: To get the live timestamp
+from datetime import datetime
 
 # ---------------------------------------------------------
 # ROBUST BACKEND CONNECTION
@@ -33,6 +33,53 @@ def run_roi_analysis(size, gen, cons):
 st.set_page_config(page_title="Kinetic | Financial Intelligence", page_icon="⚡", layout="wide",
                    initial_sidebar_state="expanded")
 
+# --- NEW FOR COMMIT 29: KINETIC CUSTOM CSS INJECTION ---
+st.markdown("""
+<style>
+    /* Import Google Fonts from your HTML mockup */
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
+    /* Global Background and Font (Matches --bg and --text) */
+    .stApp {
+        background-color: #f7f5f0;
+        font-family: 'DM Sans', sans-serif;
+        color: #1f2937;
+    }
+
+    /* Sidebar Background (Matches --bg2) */
+    [data-testid="stSidebar"] {
+        background-color: #ede9e0;
+    }
+
+    /* Headings Typography */
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Syne', sans-serif !important;
+        font-weight: 700 !important;
+        color: #1f2937 !important;
+    }
+
+    /* Metric Styling (Matches the Space Mono data font and Kinetic Orange) */
+    [data-testid="stMetricValue"] {
+        font-family: 'Space Mono', monospace !important;
+        color: #f4601a !important;
+    }
+
+    /* Primary Button Styling */
+    div.stButton > button:first-child {
+        background-color: #f4601a !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 4px !important;
+        font-family: 'Syne', sans-serif !important;
+        font-weight: 600 !important;
+    }
+    div.stButton > button:first-child:hover {
+        background-color: #d95316 !important;
+        color: white !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------------------------------------------------
 # 2. MAIN DASHBOARD HEADER
 # ---------------------------------------------------------
@@ -40,7 +87,6 @@ st.title("⚡ Kinetic: AI-Driven Solar ROI & Risk-Aware Dashboard")
 st.markdown(
     "Evaluate the financial feasibility, risks, and payback of your residential solar PV investment in Sri Lanka.")
 
-# NEW FOR COMMIT 28: Dynamic Subtitle and Status Bar
 head_col1, head_col2 = st.columns([3, 1])
 with head_col1:
     st.caption("🟢 **System Status:** Online | 🧠 AI Models: Connected | 📡 Market Data: Synced")
@@ -166,7 +212,7 @@ if calculate_btn:
                     st.metric(label="Longest Payback (P95)", value=f"{risk['Worst_Case_Payback_Years']} yrs")
                     st.metric(label="Win Probability (ROI > 0)", value=f"{scen['Probability_Positive_ROI']}%")
 
-                st.write("")  # Spacer
+                st.write("")
 
                 st.markdown("### 💡 Final Recommendation")
                 rec_text = results["Recommendation"]
