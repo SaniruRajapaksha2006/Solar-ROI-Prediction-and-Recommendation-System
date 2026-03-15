@@ -51,3 +51,34 @@ class SimilarityEngine:
         print(f"  k={self.n_neighbors}  metric={self.metric}  "
               f"features={self._similarity_features}")
         return self
+
+    # -- Predict ---------------------------------------------------------------
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        """
+        Predict Efficiency for each row in X.
+
+        For each query row:
+          1. Scale features using the training scaler
+          2. Find k nearest neighbours in training set
+          3. Return mean Efficiency of those k neighbours
+
+        Args:
+            X : Feature DataFrame
+
+        Returns:
+            np.ndarray of predicted Efficiency values (kWh/kW)
+        """
+        if not self._is_fitted:
+            raise RuntimeError("Call fit() before predict().")
+
+
+        X_scaled             = self._scaler.transform(X[self._similarity_features])
+        distances, indices   = self._nn.kneighbors(X_scaled)
+
+        # Mean Efficiency of k nearest historical months per query row
+        predictions = np.array([
+            self._train_efficiency[idx].mean()
+            for idx in indices
+        ])
+        return predictions
