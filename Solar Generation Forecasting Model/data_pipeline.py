@@ -1,10 +1,8 @@
 """
-data_pipeline.py
-================
 Prepares raw CEB + NASA data into final.csv ready for model_trainer.py.
 
 Steps
-─────
+-----
 1. Load      CEB solar records + NASA POWER weather
 2. Impute    Fill missing GHI months from NASA 2018–2022 historical avg
 3. Outliers  IQR-based removal on EXPORT_kWh per month
@@ -13,7 +11,6 @@ Steps
 6. Filter    Keep residential accounts only (INV_CAPACITY ≤ 20 kW)
 7. Save      Write data/processed/final.csv
 
-All column logic lives in src/features/selection.py — not here.
 """
 
 from datetime import datetime
@@ -49,7 +46,7 @@ def run_pipeline(save_intermediates: bool = False) -> None:
 
     loader = DataLoader()
 
-    # ── STEP 1: Load ──────────────────────────────────────────────
+    # -- STEP 1: Load ----------------------------------------------
     print("\nSTEP 1 - LOAD")
     print("-" * 40)
 
@@ -70,7 +67,7 @@ def run_pipeline(save_intermediates: bool = False) -> None:
 
     df = loader.merge_ceb_weather(ceb_df, weather_df)
 
-    # ── STEP 2: Impute missing GHI ────────────────────────────────
+    # -- STEP 2: Impute missing GHI --------------------------------
     print("\nSTEP 2 - MISSING VALUE IMPUTATION")
     print("-" * 40)
 
@@ -88,7 +85,7 @@ def run_pipeline(save_intermediates: bool = False) -> None:
     if save_intermediates:
         loader.save(df, DATA_PROC_DIR / "01_imputed.csv")
 
-    # ── STEP 3: Outlier removal ───────────────────────────────────
+    # -- STEP 3: Outlier removal -----------------------------------
     print("\nSTEP 3 - OUTLIER REMOVAL")
     print("-" * 40)
 
@@ -96,7 +93,7 @@ def run_pipeline(save_intermediates: bool = False) -> None:
         df, column=oc["target_column"]
     )
 
-    # ── STEP 4: Feature engineering + target ─────────────────────
+    # -- STEP 4: Feature engineering + target ---------------------
     print("\nSTEP 4 - FEATURE ENGINEERING + TARGET")
     print("-" * 40)
 
@@ -104,7 +101,7 @@ def run_pipeline(save_intermediates: bool = False) -> None:
     # create_all_features() detects EXPORT_kWh and creates
     # Efficiency = EXPORT_kWh / INV_CAPACITY automatically.
 
-    # ── STEP 5: Feature selection ─────────────────────────────────
+    # -- STEP 5: Feature selection ---------------------------------
     print("\nSTEP 5 - FEATURE SELECTION")
     print("-" * 40)
 
@@ -112,7 +109,7 @@ def run_pipeline(save_intermediates: bool = False) -> None:
         df, correlation_threshold=fs["correlation_threshold"]
     )
 
-    # ── STEP 6: Residential filter ────────────────────────────────
+    # -- STEP 6: Residential filter --------------------------------
     print("\nSTEP 6 - RESIDENTIAL FILTER")
     print("-" * 40)
 
@@ -121,7 +118,7 @@ def run_pipeline(save_intermediates: bool = False) -> None:
     print(f"  Removed {before - len(df):,} records > {res['max_capacity_kw']} kW")
     print(f"  Remaining: {len(df):,}")
 
-    # ── STEP 7: Save ──────────────────────────────────────────────
+    # -- STEP 7: Save ----------------------------------------------
     print("\nSTEP 7 - SAVE")
     print("-" * 40)
 
