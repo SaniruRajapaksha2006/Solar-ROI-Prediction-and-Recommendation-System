@@ -245,3 +245,29 @@ def health():
         'forecasterReady' : state['forecaster'].is_trained,
         'timestamp'       : datetime.utcnow().isoformat() + 'Z',
     }), 200
+
+
+def get_capacity_recommendation(score: float, available_headroom: float) -> dict:
+    """Recommend optimal solar capacity tier based on headroom."""
+
+    if score < 60:
+        return None
+
+    safe_max = available_headroom * 0.80
+
+    # Fixed capacity tiers in kW
+    tiers = [1.5, 3.0, 5.0, 7.5, 10.0, 15.0, 20.0]
+
+    recommended = None
+    for tier in tiers:
+        if tier <= safe_max:
+            recommended = tier
+
+    if recommended is None:
+        return None
+
+    return {
+        'recommendedCapacity_kW': recommended,
+        'safeMaxCapacity_kW': round(safe_max, 1),
+        'message': f"Based on available headroom, a {recommended} kW system is optimal for this transformer."
+    }
