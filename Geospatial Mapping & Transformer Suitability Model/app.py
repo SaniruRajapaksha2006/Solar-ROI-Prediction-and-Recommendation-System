@@ -536,3 +536,33 @@ def render_detail(tf):
                 unsafe_allow_html=True)
     st.markdown(f"<div class='rec-box'>{tf['recommendation']}</div>",
                 unsafe_allow_html=True)
+
+    def main():
+        # ── Sidebar ───────────────────────────────────────────────────────────────
+        with st.sidebar:
+            st.markdown("## ⚡ SolarGrid Intelligence")
+            st.markdown(
+                "<span style='font-size:11px;color:#64748b;font-family:monospace'>v2.0 · Transformer Suitability</span>",
+                unsafe_allow_html=True)
+            st.divider()
+
+            csv_path = st.text_input(
+                "Dataset Path",
+                value=r"MASTER_DATASET_ALL_10TRANSFORMERS.csv",
+                help="Full path to your transformer CSV file"
+            )
+
+            st.markdown("#### 📍 Location")
+            user_lat = st.number_input("Latitude", value=6.849, step=0.0001, format="%.4f")
+            user_lon = st.number_input("Longitude", value=79.9247, step=0.0001, format="%.4f")
+
+            st.markdown("#### ☀️ Solar Installation")
+            solar_kw = st.number_input("Solar Capacity (kW)", value=5.0, min_value=0.5,
+                                       max_value=200.0, step=0.5)
+            radius_m = st.number_input("Search Radius (m)", value=5000, min_value=100,
+                                       max_value=20000, step=100)
+
+            st.divider()
+            run_btn = st.button("▶  Run Assessment", use_container_width=True, type="primary")
+
+
