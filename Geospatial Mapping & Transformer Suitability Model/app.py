@@ -358,3 +358,37 @@ def run_assessment(transformer_data, scaler, rf, km, lr, label_map,
         r['rank'] = idx + 1
 
     return results
+
+
+def build_map(results, user_lat, user_lon, selected_code=None):
+    m = folium.Map(location=[user_lat, user_lon], zoom_start=14,
+                   tiles='CartoDB dark_matter')
+
+    folium.CircleMarker(
+        location=[user_lat, user_lon],
+        radius=10, color='white', fill=True,
+        fill_color='#00d4ff', fill_opacity=0.9,
+        popup=folium.Popup('<b>Your Location</b>', max_width=150),
+    ).add_to(m)
+
+    for tf in results:
+        col = marker_color(tf['score'])
+        folium.CircleMarker(
+            location=[tf['lat'], tf['lon']],
+            radius=10 if tf['code'] == selected_code else 8,
+            color='white',
+            weight=3 if tf['code'] == selected_code else 1,
+            fill=True, fill_color=col, fill_opacity=0.85,
+            popup=folium.Popup(
+                f"<div style='font-family:monospace;font-size:12px'>"
+                f"<b>{tf['code']}</b><br>"
+                f"Score: {tf['score']:.1f}/100<br>"
+                f"Distance: {tf['distance']:.0f} m<br>"
+                f"Util after: {tf['utilAfter']:.1f}%<br>"
+                f"{'✅ Supported' if tf['canSupport'] else '❌ Not Supported'}"
+                f"</div>",
+                max_width=200
+            ),
+        ).add_to(m)
+
+    return m
