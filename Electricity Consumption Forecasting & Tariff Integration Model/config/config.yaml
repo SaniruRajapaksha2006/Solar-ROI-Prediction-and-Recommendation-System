@@ -1,0 +1,284 @@
+# Component 3 Configuration
+# Electricity Consumption Forecasting for Sri Lanka
+
+# ============================================================
+# DATA CONFIGURATION
+# ============================================================
+data:
+  # Dataset configuration
+  dataset_path: "../processed/MASTER_DATASET_RESIDENTIAL_ONLY.csv"
+  #database_path: "data/consumption.db"  # SQLite database for caching
+
+  # Dataset column names
+  columns:
+    transformer_code: "TRANSFORMER_CODE"
+    transformer_lat: "TRANSFORMER_LAT"
+    transformer_lon: "TRANSFORMER_LON"
+    account_no: "ACCOUNT_NO"
+    customer_lat: "CUSTOMER_LAT"
+    customer_lon: "CUSTOMER_LON"
+    month: "MONTH"
+    year: "YEAR"
+    import_kwh: "IMPORT_kWh"
+    export_kwh: "EXPORT_kWh"
+    net_consumption: "NET_CONSUMPTION_kWh"
+    has_solar: "HAS_SOLAR"
+    inv_capacity: "INV_CAPACITY"
+    tariff: "CAL_TARIFF"
+    phase: "PHASE"
+    data_quality: "DATA_QUALITY"
+    distance_from_tf: "DISTANCE_FROM_TF_M"
+    source: "SOURCE"
+
+# ============================================================
+# SIMILARITY MATCHING
+# ============================================================
+similarity:
+  # Similarity matching weights (sum to 1.0)
+  weights:
+    geographic: 0.15           # Location proximity
+    consumption_pattern: 0.60   # Pattern in overlapping months (safe)
+    technical: 0.15             # Tariff, phase, solar status
+    seasonal_compatibility: 0.10 # Seasonal pattern match
+
+  # Search parameters
+  max_distance_km: 2.0          # Search within 2km radius
+  min_similarity_score: 0.4      # Minimum similarity to consider
+  top_n_similar: 10              # Number of similar households to return
+
+  # Geographic settings
+  sri_lanka_bounds:
+    lat_min: 5.9
+    lat_max: 9.8
+    lon_min: 79.6
+    lon_max: 81.9
+
+# ============================================================
+# FEATURE ENGINEERING
+# ============================================================
+features:
+  # Cyclical encoding
+  cyclical:
+    month_period: 12
+    day_of_week_period: 7
+    hour_period: 24
+
+  # Lag features
+  lags: [1, 2, 3, 6, 12, 24]
+
+  # Rolling statistics windows
+  rolling_windows: [3, 6, 12]
+
+  # Weather integration
+  weather:
+    enabled: true
+    source: "NASA_POWER"  # or "OpenWeatherMap"
+    api_key: null         # Add if using OpenWeatherMap
+    cache_days: 30        # Cache weather data for 30 days
+    features:
+      - temperature
+      - humidity
+      - rainfall
+      - cloud_cover
+
+  # Sri Lanka specific
+  sri_lanka:
+    holiday_months: [1, 4, 5, 12]  # Thai Pongal, Avurudu, Vesak, Christmas
+    peak_months: [3, 4, 10]        # March, April, October
+    low_months: [7, 8]              # July, August (monsoon)
+    seasonal_factors:
+      1: 0.85   # January: Cool, post-festival
+      2: 0.90   # February: Moderate
+      3: 1.15   # March: Hot season begins
+      4: 1.25   # April: PEAK (Avurudu)
+      5: 1.20   # May: Hot, Vesak
+      6: 1.00   # June: SW monsoon begins
+      7: 0.85   # July: Peak monsoon
+      8: 0.90   # August: Monsoon continues
+      9: 1.00   # September: Moderate
+      10: 1.10  # October: Hot, dry
+      11: 1.05  # November: Hot, dry
+      12: 0.95  # December: Moderate
+
+# ============================================================
+# FORECASTING
+# ============================================================
+forecasting:
+  # Forecast parameters
+  min_consumption_kwh: 50
+  max_consumption_kwh: 2000
+  confidence_threshold: 0.6
+
+  # Method selection
+  methods:
+    primary: "lstm"
+    fallback: "pattern_based"
+    ensemble: true
+
+  # LSTM Configuration
+  lstm:
+    enabled: true
+    architecture: "lstm"
+    layers: [32, 48]
+    dropout: [0.2, 0.4]
+    batch_size: 32
+    epochs: 100
+    learning_rate: 0.001
+    lookback_window: 12
+    forecast_horizon: 12
+    validation_split: 0.2
+    early_stopping_patience: 10
+    reduce_lr_patience: 5
+
+  # Pattern-based (fallback)
+  pattern_based:
+    enabled: true
+    min_similar_households: 3
+    confidence_threshold: 0.5
+
+  # Ensemble
+  ensemble:
+    lstm_weight: 0.3
+    pattern_weight: 0.7
+    confidence_threshold: 0.6
+
+# ============================================================
+# TARIFF CONFIGURATION (PUCSL 2025)
+# ============================================================
+tariff:
+  # D1 - Domestic (Residential)
+  D1:
+    blocks:
+      - min: 0
+        max: 30
+        rate: 8.00
+      - min: 31
+        max: 60
+        rate: 10.00
+      - min: 61
+        max: 90
+        rate: 16.00
+      - min: 91
+        max: 120
+        rate: 50.00
+      - min: 121
+        max: 180
+        rate: 75.00
+      - min: 181
+        max: 9999
+        rate: 100.00
+    fixed_charge: 180
+    fuel_adjustment: 0.18
+    vat_rate: 0.18
+    export_rate: 100.00  # Rate for excess generation credits
+
+  # GP1 - General Purpose (Small Commercial)
+  GP1:
+    blocks:
+      - min: 0
+        max: 100
+        rate: 45.00
+      - min: 101
+        max: 9999
+        rate: 55.00
+    fixed_charge: 240
+    fuel_adjustment: 0.18
+    vat_rate: 0.18
+    export_rate: 55.00
+
+  # Tariff versioning
+  version: "2025.1"
+  effective_date: "2025-01-01"
+
+  # Net metering rules
+  net_metering:
+    credit_expiry_months: 12
+    minimum_monthly_charge: true
+    annual_settlement_month: 12
+
+# ============================================================
+# MODEL TRAINING & VALIDATION
+# ============================================================
+training:
+  # Train-test split
+  test_size: 0.2
+  validation_size: 0.1
+  random_seed: 42
+
+  # Cross-validation
+  cv_folds: 5
+  cv_method: "TimeSeriesSplit"
+
+  # Model saving
+  save_models: true
+  model_path: "models/saved/"
+
+  # Checkpointing
+  checkpoint_frequency: 5
+
+# ============================================================
+# EVALUATION METRICS
+# ============================================================
+evaluation:
+  metrics:
+    - mae
+    - rmse
+    - mape
+    - r2
+    - mase
+
+  # Baselines to compare against
+  baselines:
+    - persistence
+    - seasonal_naive
+    - arima
+
+  # Statistical tests
+  significance_test: "Diebold-Mariano"
+  significance_level: 0.05
+
+# ============================================================
+# MONITORING & DRIFT DETECTION
+# ============================================================
+monitoring:
+  drift_detection:
+    enabled: true
+    window_size: 6
+    threshold: 2.0
+    metrics:
+      - prediction_error
+      - feature_distribution
+      - cluster_stability
+
+  logging:
+    level: "INFO"
+    file: "logs/component3.log"
+    max_size_mb: 100
+    backup_count: 5
+
+# ============================================================
+# API CONFIGURATION
+# ============================================================
+api:
+  host: "127.0.0.1"
+  port: 8000
+  workers: 4
+  rate_limit: 100  # requests per minute
+
+  caching:
+    enabled: true
+    ttl_seconds: 3600  # 1 hour
+    max_size_mb: 500
+
+# ============================================================
+# OUTPUT CONFIGURATION
+# ============================================================
+output:
+  format: "json"
+  include_confidence: true
+  include_similar_houses: true
+  include_monthly_breakdown: true
+  include_uncertainty: true
+  include_features: false
+  results_dir: "results/"
+  export_for_component4: true
