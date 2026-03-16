@@ -248,3 +248,113 @@ def generate_recommendation(score, headroom):
     return f"Not suitable. Only {headroom['available_headroom_kW']:.1f} kW headroom available. Select a different transformer."
 
 
+def run_assessment(transformer_data, scaler, rf, km, lr, label_map,
+                   user_lat, user_lon, solar_kw, radius_m):
+    df = transformer_data.copy()
+
+    # Distance filter
+    df['DISTANCE_M'] = df.apply(
+        lambda r: geodesic((user_lat, user_lon),
+                           (r['TRANSFORMER_LAT'], r['TRANSFORMER_LON'])).meters, axis=1
+    )
+    nearby = df[df['DISTANCE_M'] <= radius_m].copy().reset_index(drop=True)
+
+    if nearby.empty:
+        return None
+
+    # ML predictions
+    X_scaled = scaler.transform(nearby[FEATURE_COLS].fillna(0))
+    proba = rf.predict_proba(X_scaled)
+    ml_scores = proba[:, 1] * 100 if proba.shape[1] > 1 else np.full(len(nearby), 50.0)
+
+    raw_clusters = km.predict(X_scaled)
+    clusters = np.vectorize(label_map.get)(raw_clusters)
+
+    results = []
+    for i, row in nearby.iterrows():
+        cap = float(row['ESTIMATED_CAPACITY_kW'])
+        current_load = float(row['current_load_kW'])
+        existing_sol = float(row['total_solar_capacity'])
+        dist = float(row['DISTANCE_M'])
+
+        total_before = current_load + existing_sol
+        available = cap - total_before
+        safe_headroom = cap * SAFETY_MARGIN - total_before
+        total_after = total_before + solar_kw
+
+        can_support = available >= solar_kw
+        curtailment_risk = (total_after / cap) > CURTAILMENT_THRESH
+        util_before = total_before / cap
+        util_after = total_after / cap
+
+        headroom = {
+            'available_headroom_kW': available,
+            'safe_headroom_kW': safe_headroom,
+            'utilization_before': util_before,
+            'utilization_after': util_after,
+        }
+
+        # Headroom score
+        ratio = safe_headroom / max(solar_kw, 0.001)
+        if ratio >= 1.5:
+            h_score = 100
+        elif ratio >= 1.0:
+            h_score = 80
+        elif available >= solar_kw:
+            h_score = 50
+        else:
+            h_score = 0
+
+        # Distance score
+        d_score = max(0.0, 100 * math.exp(-dist / 1000))
+
+        # Stability score
+        if util_after <= 0.70:
+            s_score = 100
+        elif util_after <= 0.85:
+            s_score = 75
+        elif util_after <= 0.95:
+            s_score = 40
+        else:
+            s_score = 0
+
+        rule_score = h_score * 0.40 + d_score * 0.30 + s_score * 0.30
+        ml_score = float(ml_scores[i])
+        blended = rule_score * 0.55 + ml_score * 0.45
+
+        future_load = float(lr.predict([[12]])[0])
+        cap_rec = get_capacity_recommendation(blended, available)
+        recommendation = generate_recommendation(blended, headroom)
+
+        results.append({
+            'code': str(row['TRANSFORMER_CODE']),
+            'lat': float(row['TRANSFORMER_LAT']),
+            'lon': float(row['TRANSFORMER_LON']),
+            'distance': round(dist, 0),
+            'score': round(blended, 2),
+            'ruleScore': round(rule_score, 2),
+            'mlScore': round(ml_score, 2),
+            'headroomScore': round(h_score, 2),
+            'distanceScore': round(d_score, 2),
+            'stabilityScore': round(s_score, 2),
+            'label': score_label(blended),
+            'capacity': cap,
+            'currentLoad': round(current_load, 2),
+            'existingSolar': round(existing_sol, 2),
+            'availableHeadroom': round(available, 2),
+            'safeHeadroom': round(safe_headroom, 2),
+            'utilBefore': round(util_before * 100, 1),
+            'utilAfter': round(util_after * 100, 1),
+            'canSupport': bool(can_support),
+            'curtailmentRisk': bool(curtailment_risk),
+            'cluster': CLUSTER_NAMES.get(int(clusters[i]), 'Unknown'),
+            'futureLoad12m': round(future_load, 2),
+            'recommendation': recommendation,
+            'capacityRec': cap_rec,
+        })
+
+    results.sort(key=lambda x: x['score'], reverse=True)
+    for idx, r in enumerate(results):
+        r['rank'] = idx + 1
+
+    return results
