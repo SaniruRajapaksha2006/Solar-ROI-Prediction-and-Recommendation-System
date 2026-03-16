@@ -588,4 +588,115 @@ def render_detail(tf):
                     st.session_state.results = results
                     st.session_state.selected = results[0]
 
+                    if st.session_state.results:
+                        results = st.session_state.results
+                        selected = st.session_state.selected
+
+                        # Stats row
+                        supported = sum(1 for t in results if t['canSupport'])
+                        curtail = sum(1 for t in results if t['curtailmentRisk'])
+                        top_score = results[0]['score']
+                        top_col = "metric-val-green" if top_score >= 80 else "metric-val-amber" if top_score >= 60 else "metric-val-red"
+
+                        c1, c2, c3, c4, c5 = st.columns(5)
+                        for col_ui, val, lbl, extra_cls in [
+                            (c1, len(results), "Transformers Found", ""),
+                            (c2, f"{top_score:.1f}", "Top Score /100", top_col),
+                            (c3, supported, "Can Support", "metric-val-green"),
+                            (c4, f"{solar_kw} kW", "Solar Capacity", ""),
+                            (c5, curtail, "Curtailment Risk", "metric-val-amber"),
+                        ]:
+                            col_ui.markdown(f"""
+                                <div class='metric-card'>
+                                    <div class='metric-val {extra_cls}'>{val}</div>
+                                    <div class='metric-lbl'>{lbl}</div>
+                                </div>""", unsafe_allow_html=True)
+
+                        st.markdown("<br>", unsafe_allow_html=True)
+
+                        # Map + detail panel
+                        map_col, detail_col = st.columns([2, 1])
+
+                        with map_col:
+                            st.markdown("#### 🗺️ Transformer Map")
+                            sel_code = selected['code'] if selected else None
+                            m = build_map(results, user_lat, user_lon, sel_code)
+                            st_folium(m, width=None, height=420, returned_objects=[])
+
+                            st.markdown("#### 📋 Ranked Transformers")
+                            for tf in results:
+                                col_cls = score_color(tf['score'])
+                                with st.container():
+                                    c1, c2, c3 = st.columns([1, 5, 2])
+                                    c1.markdown(
+                                        f"<div style='font-family:monospace;font-size:22px;font-weight:700;color:#e2e8f0;text-align:center'>#{tf['rank']}</div>",
+                                        unsafe_allow_html=True)
+                                    with c2:
+                                        st.markdown(f"""
+                                            <div style='padding:4px 0'>
+                                                <span style='font-family:monospace;font-weight:700;font-size:15px'>{tf['code']}</span>
+                                                &nbsp;
+                                                <span style='font-family:monospace;font-size:10px;
+                                                            background:#1c2539;border:1px solid #1f2d45;
+                                                            padding:2px 8px;border-radius:20px;color:#64748b'>
+                                                    {tf['distance']:.0f} m
+                                                </span>
+                                                {'&nbsp;<span style="font-family:monospace;font-size:10px;color:#fca5a5;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);padding:2px 8px;border-radius:20px">⚡ CURTAIL</span>' if tf['curtailmentRisk'] else ''}
+                                            </div>
+                                            <div style='font-size:12px;color:#64748b;margin-top:2px'>{tf['cluster']}</div>
+                                            <div style='display:flex;gap:20px;margin-top:8px'>
+                                                <div><div style='font-size:10px;color:#64748b;font-family:monospace'>CAPACITY</div>
+                                                     <div style='font-weight:600;font-size:13px'>{tf['capacity']:.0f} kW</div></div>
+                                                <div><div style='font-size:10px;color:#64748b;font-family:monospace'>AVAILABLE</div>
+                                                     <div style='font-weight:600;font-size:13px'>{tf['availableHeadroom']:.1f} kW</div></div>
+                                                <div><div style='font-size:10px;color:#64748b;font-family:monospace'>UTIL AFTER</div>
+                                                     <div style='font-weight:600;font-size:13px;color:{"#10b981" if tf["utilAfter"] <= 70 else "#f59e0b" if tf["utilAfter"] <= 85 else "#ef4444"}'>{tf['utilAfter']:.1f}%</div></div>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                    with c3:
+                                        st.markdown(f"""
+                                            <div style='text-align:center;padding:8px'>
+                                                <div class='{col_cls}' style='font-size:28px'>{tf['score']:.0f}</div>
+                                                <div style='font-size:10px;font-family:monospace;margin-top:4px' class='{col_cls}'>{tf['label']}</div>
+                                                <div style='font-size:11px;font-family:monospace;margin-top:4px;
+                                                            color:{"#10b981" if tf["canSupport"] else "#ef4444"}'>
+                                                    {"✓ OK" if tf["canSupport"] else "✗ NO"}
+                                                </div>
+                                            </div>""", unsafe_allow_html=True)
+
+                                    if st.button(f"View Details →", key=f"btn_{tf['code']}"):
+                                        st.session_state.selected = tf
+                                        st.rerun()
+
+                                    st.divider()
+
+                        with detail_col:
+                            st.markdown("#### 🔍 Detail Panel")
+                            if selected:
+                                render_detail(selected)
+                            else:
+                                st.markdown("""
+                                    <div style='text-align:center;padding:60px 20px;color:#64748b'>
+                                        <div style='font-size:32px;margin-bottom:12px'>◎</div>
+                                        <div style='font-size:13px'>Click "View Details" on a transformer</div>
+                                    </div>""", unsafe_allow_html=True)
+
+                    else:
+                        # Home state
+                        st.markdown("""
+                            <div style='text-align:center;padding:80px 20px'>
+                                <div style='font-size:48px;margin-bottom:16px'>⚡</div>
+                                <h2 style='font-weight:300;letter-spacing:-0.02em'>
+                                    Solar<strong>Grid</strong> Intelligence
+                                </h2>
+                                <p style='color:#64748b;font-size:15px;max-width:500px;margin:12px auto 0'>
+                                    Enter your location and solar capacity in the sidebar,
+                                    then click Run Assessment to find the best transformer connection.
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                    if __name__ == '__main__':
+                        main()
+
 
