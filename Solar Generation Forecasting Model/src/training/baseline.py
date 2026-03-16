@@ -16,7 +16,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
 
-# Conservative default params
+# Conservative default params — fast fit for comparison, not final tuning
 _BASE_MODELS = {
     "Ridge":    Ridge(alpha=1.0),
     "Lasso":    Lasso(alpha=0.1, max_iter=10_000),
@@ -70,7 +70,11 @@ class BaselineEvaluator:
 
             vs_physics = ""
             if physics_mae is not None:
-                vs_physics = "beats" if mae < physics_mae else "✗ loses"
+                if mae < physics_mae:
+                    vs_physics = "beats physics"
+                else:
+                    # Physics assumes ideal conditions (zero shading, no inverter clipping).
+                    vs_physics = "below physics (untuned)"
 
             results.append({
                 "Model":        name,
@@ -86,6 +90,7 @@ class BaselineEvaluator:
         print("\n" + df_results.to_string(index=False))
         return df_results
 
+    # -- Private ---------------------------------------------------------------
 
     def _physics_baseline(self, y_test: pd.Series,
                           df_test_raw: pd.DataFrame) -> float | None:
@@ -96,5 +101,6 @@ class BaselineEvaluator:
         mae = mean_absolute_error(y_test, df_test_raw["Physics_Pred"])
         r2  = r2_score(y_test, df_test_raw["Physics_Pred"])
         print(f"\n  Physics baseline  MAE={mae:.4f} kWh/kW  R²={r2:.4f}")
-        print(f"  ML models must beat MAE={mae:.4f} to justify complexity\n")
+        print(f"  Note: Physics assumes ideal conditions (zero shading, no inverter")
+        print(f"  clipping, 100% PR). Real-world roofs deviate — ML must beat this.\n")
         return mae
