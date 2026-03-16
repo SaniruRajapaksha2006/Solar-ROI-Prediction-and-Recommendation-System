@@ -5,7 +5,7 @@ All feature creation and the Efficiency training target.
 import numpy as np
 import pandas as pd
 
-from utils.utils_config import load_config
+from utils.utils_config import get_physics_constants
 
 
 DAYS_IN_MONTH = {
@@ -18,12 +18,12 @@ class FeatureEngineer:
 
     def __init__(self):
         self._created: list[str] = []
-        phys = load_config()["physics"]
+        phys = get_physics_constants()
         self._pr        = phys["performance_ratio"]   # 0.80
         self._tc        = phys["temp_coefficient"]    # -0.005
         self._t_ref     = phys["temp_reference"]      # 25.0
 
-    # ── Individual feature groups ──────────────────────────────────────────────
+    # -- Individual feature groups ----------------------------------------------
 
     def _temperature_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Temp_Efficiency, Temp_Range, GHI_Adjusted."""
@@ -86,7 +86,7 @@ class FeatureEngineer:
               f"max={df['Efficiency'].max():.2f}")
         return df
 
-    # ── Public ─────────────────────────────────────────────────────────────────
+    # -- Public -----------------------------------------------------------------
 
     def create_all_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """

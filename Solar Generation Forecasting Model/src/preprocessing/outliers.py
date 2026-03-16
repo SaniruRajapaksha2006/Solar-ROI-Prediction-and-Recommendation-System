@@ -6,7 +6,7 @@ IQR-based outlier removal on EXPORT_kWh, applied per month.
 import numpy as np
 import pandas as pd
 
-from utils.utils_config import load_config
+from utils.utils_config import get_outlier_config
 
 
 MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun",
@@ -16,7 +16,7 @@ MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun",
 class OutlierRemover:
 
     def __init__(self, iqr_threshold: float = None):
-        cfg = load_config()["outlier_detection"]
+        cfg = get_outlier_config()
         self.iqr_threshold = iqr_threshold if iqr_threshold is not None \
                              else cfg["iqr_threshold"]
 

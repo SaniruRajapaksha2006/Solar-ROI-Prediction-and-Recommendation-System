@@ -1,16 +1,16 @@
 """
-Column lists and feature selector.]
+Column lists and feature selector.
 """
 
 import numpy as np
 import pandas as pd
 
-from utils.utils_config import load_config
+from utils.utils_config import get_feature_selection_config, load_config
 
 
 def get_column_config() -> dict:
     """Return the feature_selection section from config.yaml."""
-    return load_config()["feature_selection"]
+    return get_feature_selection_config()
 
 
 def get_non_feature_cols() -> list[str]:

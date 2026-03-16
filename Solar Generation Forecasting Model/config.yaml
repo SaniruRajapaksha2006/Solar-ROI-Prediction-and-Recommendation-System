@@ -132,6 +132,26 @@ residential:
   max_capacity_kw: 20   # Sri Lanka residential cap — filters commercial
 
 
+# -- Training / Evaluation ---------------------------------------
+training:
+  test_size:         0.2
+  random_state:      42
+  n_folds:           5
+  overfit_threshold: 15.0   # kWh/kW gap above which model is flagged as overfit
+  cv_leak_threshold: -5.0   # negative gap that suggests CV leakage
+
+
+# -- C3S SEAS5 Forecast API --------------------------------------
+c3s:
+  dataset:             "seasonal-monthly-single-levels"
+  system:              "51"
+  originating_centre:  "ecmwf"
+  product_type:        "monthly_mean"
+  sri_lanka_area:      [8.5, 79.0, 5.5, 82.0]   # [N, W, S, E]
+  max_leadtime_months: 6
+  tmp_dir:             "/tmp/c3s_solar"
+
+
 # -- ROI / Financial Constants -----------------------------------
 roi:
   net_plus_tariff_lkr: 37.00    # LKR/kWh (Net Plus tariff, PUCSL 2025)

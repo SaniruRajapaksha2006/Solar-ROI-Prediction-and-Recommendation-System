@@ -58,3 +58,43 @@ def get_nasa_params() -> dict[str, str]:
     Used by nasa_power.py, data_pipeline.py, handle_missing.py.
     """
     return load_config()["nasa"]["params"]
+
+
+def get_training_config() -> dict[str, Any]:
+    """
+    Return training/evaluation constants.
+    Used by splitter.py, tuner.py, evaluator.py.
+
+    Returns:
+        {
+            "test_size":         0.2,
+            "random_state":      42,
+            "n_folds":           5,
+            "overfit_threshold": 15.0,
+            "cv_leak_threshold": -5.0,
+        }
+    """
+    return load_config()["training"]
+
+
+def get_c3s_config() -> dict[str, Any]:
+    """
+    Return C3S SEAS5 API constants.
+    Used by fetch_future_weather.py.
+    """
+    return load_config()["c3s"]
+
+
+def get_outlier_config() -> dict[str, Any]:
+    """Return outlier detection config. Used by outliers.py."""
+    return load_config()["outlier_detection"]
+
+
+def get_similarity_config() -> dict[str, Any]:
+    """Return similarity model config. Used by similarity_engine.py."""
+    return load_config()["similarity"]
+
+
+def get_feature_selection_config() -> dict[str, Any]:
+    """Return feature selection config. Used by selection.py."""
+    return load_config()["feature_selection"]

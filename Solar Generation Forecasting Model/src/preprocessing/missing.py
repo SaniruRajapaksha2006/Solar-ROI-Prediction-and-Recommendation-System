@@ -89,6 +89,9 @@ class MissingValueHandler:
                                for yr in range(start_yr, end_yr + 1)
                                if f"{yr}{month:02d}" in clrsky]
 
+                avg   = None
+                avg_c = None
+
                 if allsky_vals:
                     avg = round(sum(allsky_vals) / len(allsky_vals), 2)
                     df.loc[df["Month"].astype(int) == month,
@@ -99,8 +102,9 @@ class MissingValueHandler:
                     df.loc[df["Month"].astype(int) == month,
                            "Clear_Sky_GHI"] = avg_c
 
-                print(f"  Month {month:02d}: GHI={avg:.2f}  "
-                      f"ClearSky={avg_c:.2f}")
+                ghi_str  = f"{avg:.2f}"   if avg   is not None else "n/a"
+                clr_str  = f"{avg_c:.2f}" if avg_c is not None else "n/a"
+                print(f"  Month {month:02d}: GHI={ghi_str}  ClearSky={clr_str}")
 
             print(f"  ✓ Imputed {len(impute_months)} months")
             return df
