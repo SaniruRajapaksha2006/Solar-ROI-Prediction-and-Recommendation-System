@@ -573,4 +573,19 @@ def render_detail(tf):
                 st.info("Make sure your CSV path is correct and the file exists.")
                 return
 
+            if 'results' not in st.session_state: st.session_state.results = None
+            if 'selected' not in st.session_state: st.session_state.selected = None
+
+            if run_btn:
+                with st.spinner("Assessing transformers…"):
+                    results = run_assessment(
+                        transformer_data, scaler, rf, km, lr, lmap,
+                        user_lat, user_lon, solar_kw, radius_m
+                    )
+                if results is None:
+                    st.error(f"No transformers found within {radius_m:.0f} m. Try increasing the search radius.")
+                else:
+                    st.session_state.results = results
+                    st.session_state.selected = results[0]
+
 
