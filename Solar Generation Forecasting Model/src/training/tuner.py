@@ -1,10 +1,5 @@
 """
-src/training/tuner.py
 Hyperparameter tuning using GridSearchCV with GroupKFold.
-
-GroupKFold is mandatory here — the same household must not appear in
-both the CV train and validation fold, otherwise CV MAE is optimistic
-and the overfitting check in evaluator.py becomes meaningless.
 """
 
 import pandas as pd

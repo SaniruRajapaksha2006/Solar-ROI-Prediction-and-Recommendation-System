@@ -24,7 +24,8 @@ location:
 # -- Data Paths --------------------------------------------------
 paths:
   ceb_dataset:    "processed/MASTER_DATASET_ALL_10TRANSFORMERS.csv"
-  weather_cache:  "data/raw/data_2025.csv"
+  weather_cache:   "data/raw/data_2025.csv"   # used by predict.py
+  weather_dataset: "data/raw/data_2025.csv"   # used by data_pipeline.py
   processed_dir:  "data/processed"
   final_dataset:  "final.csv"
   model:          "models/best_solar_pipeline.pkl"
@@ -38,6 +39,10 @@ nasa:
   community:       "RE"
   timeout_seconds: 60
   fill_value:      -999.0
+  latitude:        6.8514    # Maharagama primary site
+  longitude:       79.9211   # Maharagama primary site
+  start_year:      2025      # Training weather data year
+  end_year:        2025      # Training weather data year
   params:
     ALLSKY_SFC_SW_DWN: Solar_Irradiance_GHI  # kWh/m²/day
     T2M:               Temperature            # °C  (monthly mean)
@@ -72,7 +77,10 @@ outlier_detection:
 
 # -- Feature Selection -------------------------------------------
 feature_selection:
-  correlation_threshold: 0.05
+  # RandomForest finds non-linear interactions (e.g. Wind_Speed × Temperature cooling effect).
+  # Dropping features by linear |r| blinds the model to exactly these interactions.
+  # Set to 0.0 — only absolute zero-variance columns would be dropped; RF decides importance natively.
+  correlation_threshold: 0.0
 
   # Columns that survive into final.csv but are NOT model inputs.
   # ACCOUNT_NO  → GroupKFold split key, excluded from X
@@ -153,8 +161,18 @@ c3s:
 
 
 # -- ROI / Financial Constants -----------------------------------
+# Net Plus export tariff history (source: PUCSL official page):
+#   Before Oct 2022 : LKR 22.00/kWh (first 7 yrs), 15.50/kWh (remaining 13 yrs)
+#   Oct 2022 – Jun 2024 : LKR 37.00/kWh (flat, for systems up to 500 kW)
+#   From 1 Jul 2024 (current) : LKR 27.06/kWh (flat, for systems up to 500 kW)
+#
+# All residential systems in this project are <= 20 kW
+# Use custom_tariff arg in predict.py to override without editing this file:
+#   python predict.py 5.0 27.06
 roi:
-  net_plus_tariff_lkr: 37.00    # LKR/kWh (Net Plus tariff, PUCSL 2025)
+  net_plus_tariff_lkr: 27.06    # LKR/kWh — Net Plus, from 1 Jul 2024 (PUCSL)
+  tariff_above_500kw:  23.18    # LKR/kWh — for systems > 500 kW (not residential)
+  tariff_legacy_2022:  37.00    # LKR/kWh — old rate Oct 2022–Jun 2024 (archived)
   mae_kwh_per_kw:      18.0     # kWh/kW model uncertainty margin
 
 

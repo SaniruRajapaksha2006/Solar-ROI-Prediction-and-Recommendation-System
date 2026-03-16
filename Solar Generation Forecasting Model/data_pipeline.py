@@ -54,10 +54,10 @@ def run_pipeline(save_intermediates: bool = False) -> None:
     weather_path = SCRIPT_DIR / paths["weather_cache"]
 
     if weather_path.exists():
-        weather_df = loader.load_local_weather(weather_path)
+        weather_df = loader.load_local_weather_data(weather_path)
     else:
         print("  Weather CSV not found — fetching from NASA POWER...")
-        weather_df = loader.fetch_nasa_weather(
+        weather_df = loader.fetch_weather_data(
             latitude=loc["lat"],
             longitude=loc["lon"],
             start_yr=imp["start_year"],

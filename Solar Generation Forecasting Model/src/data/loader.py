@@ -1,4 +1,5 @@
 """
+src/data/loader.py
 Loads CEB export data and NASA POWER weather, merges and saves.
 """
 
@@ -25,7 +26,7 @@ class DataLoader:
         print(f"  Loaded {len(df):,} solar records")
         return df
 
-    def load_local_weather(self, weather_path: str | Path = "data/raw/data_2025.csv") -> pd.DataFrame:
+    def load_local_weather_data(self, weather_path: str | Path = "data/raw/data_2025.csv") -> pd.DataFrame:
         path = Path(weather_path)
         if not path.exists():
             raise FileNotFoundError(f"Weather file not found: {path}")
@@ -35,7 +36,7 @@ class DataLoader:
         print(f"  Loaded {len(df)} months")
         return df
 
-    def fetch_nasa_weather(self, latitude: float, longitude: float,
+    def fetch_weather_data(self, latitude: float, longitude: float,
                            start_yr: int = 2025, end_yr: int = 2025,
                            params: dict = None,
                            save_path: str | Path = "data/raw/data_2025.csv") -> pd.DataFrame:
