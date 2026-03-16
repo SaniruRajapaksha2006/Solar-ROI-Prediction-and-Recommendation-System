@@ -156,6 +156,52 @@ def get_weather_integrator():
         _weather_integrator = WeatherIntegrator(config)
     return _weather_integrator
 
+# Pydantic models for request/response
+class ConsumptionMonth(BaseModel):
+    month: int = Field(..., ge=1, le=12, description="Month number (1-12)")
+    consumption: float = Field(..., ge=0, le=2000, description="Consumption in kWh")
+
+
+class UserInput(BaseModel):
+    latitude: float = Field(..., description="Latitude")
+    longitude: float = Field(..., description="Longitude")
+    consumption_months: List[ConsumptionMonth] = Field(..., min_items=2, max_items=12)
+    tariff: str = Field("D1", description="Tariff category (D1, GP1, GP2)")
+    phase: str = Field("SP", description="Phase (SP=Single, TP=Three)")
+    has_solar: int = Field(0, ge=0, le=1, description="Has solar installed (0/1)")
+    household_size: int = Field(4, ge=1, le=20, description="Number of people")
+
+    @validator('latitude')
+    def validate_latitude(cls, v):
+        if not (5.9 <= v <= 9.8):
+            raise ValueError('Latitude must be within Sri Lanka (5.9 to 9.8)')
+        return v
+
+    @validator('longitude')
+    def validate_longitude(cls, v):
+        if not (79.6 <= v <= 81.9):
+            raise ValueError('Longitude must be within Sri Lanka (79.6 to 81.9)')
+        return v
+
+    @validator('tariff')
+    def validate_tariff(cls, v):
+        if v not in ['D1', 'GP1', 'GP2']:
+            raise ValueError('Tariff must be D1, GP1, or GP2')
+        return v
+
+    @validator('phase')
+    def validate_phase(cls, v):
+        if v not in ['SP', 'TP']:
+            raise ValueError('Phase must be SP or TP')
+        return v
+
+
+class ForecastResponse(BaseModel):
+    status: str
+    message: str
+    data: Optional[Dict[str, Any]] = None
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+
 # API Endpoints
 @app.get("/")
 async def root():
@@ -188,3 +234,108 @@ async def health_check():
             "tariff_calculator": get_tariff_calculator() is not None
         }
     }
+
+@app.post("/forecast", response_model=ForecastResponse)
+async def forecast(user_input: UserInput, background_tasks: BackgroundTasks):
+    # Generate consumption forecast for a user
+
+    try:
+        # Convert to dictionary
+        user_data = {
+            'latitude': user_input.latitude,
+            'longitude': user_input.longitude,
+            'consumption_months': {m.month: m.consumption for m in user_input.consumption_months},
+            'tariff': user_input.tariff,
+            'phase': user_input.phase,
+            'has_solar': user_input.has_solar,
+            'household_size': user_input.household_size
+        }
+
+        logger.info(f"Processing forecast for location: {user_input.latitude}, {user_input.longitude}")
+
+        # Find similar households
+        similar_households = get_similarity_matcher().find_similar_households_safe(user_data)
+
+        # Engineer features
+        features = get_feature_engineer().create_all_features(
+            user_data,
+            similar_households,
+            get_data_loader().df
+        )
+
+        # Add weather if enabled
+        if get_weather_integrator():
+            weather_features = get_weather_integrator().get_features(
+                user_input.latitude,
+                user_input.longitude,
+                user_data['consumption_months']
+            )
+            features['weather'] = weather_features
+
+        # Generate forecast
+        method = 'ensemble' if config['forecasting']['ensemble']['enabled'] else 'pattern'
+
+        if method == 'ensemble':
+            forecast_result = get_ensemble_forecaster().forecast(
+                user_data, similar_households, features
+            )
+        else:
+            forecast_result = get_pattern_extractor().extract_pattern_with_forecast(
+                similar_households, user_data
+            )
+
+        # Calculate bills
+        monthly_consumption = forecast_result['forecast']['monthly_values']
+        annual_bills = get_tariff_calculator().calculate_annual_bills(
+            monthly_consumption, user_input.tariff
+        )
+
+        # Apply net metering if user has solar
+        if user_input.has_solar:
+            # This would need generation forecast from Component 1
+            # Placeholder for now
+            pass
+
+        # Prepare response
+        response_data = {
+            'forecast': forecast_result['forecast'],
+            'billing': annual_bills,
+            'similar_households': len(similar_households),
+            'method': method,
+            'confidence': forecast_result['forecast']['statistics']['overall_confidence']
+        }
+
+        # Log request in background
+        background_tasks.add_task(
+            log_request,
+            user_data,
+            forecast_result['forecast']['statistics']
+        )
+
+        return ForecastResponse(
+            status="success",
+            message="Forecast generated successfully",
+            data=response_data
+        )
+
+    except Exception as e:
+        logger.error(f"Error in forecast endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+def log_request(user_data: Dict, forecast_stats: Dict):
+    """Log request for monitoring"""
+    log_entry = {
+        'timestamp': datetime.now().isoformat(),
+        'user_location': (user_data['latitude'], user_data['longitude']),
+        'n_months': len(user_data['consumption_months']),
+        'forecast_annual': forecast_stats['annual_total'],
+        'forecast_confidence': forecast_stats['overall_confidence']
+    }
+
+    # Append to log file
+    log_file = Path("logs/api_requests.log")
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    import json
+    with open(log_file, 'a') as f:
+        f.write(json.dumps(log_entry) + '\n')
