@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import json
 import os
 import logging
@@ -11,11 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class SolarFinancialModel:
-    """
-    A stochastic financial evaluation model for residential solar PV systems in Sri Lanka.
-    Utilizes Vectorized Monte Carlo simulation to account for uncertainties in equipment degradation,
-    maintenance costs, tariff escalations, and inverter lifespan.
-    """
 
     def __init__(self, json_filename: str = "market_data.json"):
         self.PRICING_DATABASE: Dict[int, float] = {}
@@ -26,7 +20,7 @@ class SolarFinancialModel:
         self.DISCOUNT_RATE: float = 0.10
         self.PROJECT_LIFETIME: int = 20
 
-        # TWEAK 1: Absolute path to prevent file not found errors across different environments
+
         base_dir = os.path.dirname(os.path.abspath(__file__))
         json_filepath = os.path.join(base_dir, json_filename)
 
@@ -61,10 +55,7 @@ class SolarFinancialModel:
     def calculate_financial_report(self, system_size_kw: float,
                                    predicted_annual_generation_kwh: float,
                                    predicted_annual_consumption_kwh: float) -> Dict[str, Any]:
-        """
-        Executes a High-Performance Vectorized Monte Carlo simulation.
-        """
-        # TWEAK 2: COMPLETE INPUT VALIDATION
+
         if system_size_kw <= 0 or predicted_annual_generation_kwh <= 0 or predicted_annual_consumption_kwh < 0:
             raise ValueError("System size, generation, and consumption must be valid non-negative numbers.")
 
@@ -72,9 +63,7 @@ class SolarFinancialModel:
         initial_investment_lkr = float(self.get_system_cost(system_size_kw))
         export_tariff_lkr = float(self.get_export_tariff(system_size_kw))
 
-        # ---------------------------------------------------------
-        # 1. VECTORIZED MONTE CARLO SIMULATION
-        # ---------------------------------------------------------
+
         n_sims = 2000
 
         degradation_rates = np.random.uniform(0.005, 0.010, n_sims)
@@ -124,9 +113,7 @@ class SolarFinancialModel:
 
         roi_array = (total_net_profit / initial_investment_lkr) * 100
 
-        # ---------------------------------------------------------
-        # 2. STATISTICAL AGGREGATION
-        # ---------------------------------------------------------
+
         expected_roi = np.mean(roi_array)
         expected_payback = np.median(payback_years)
         expected_npv = np.mean(npv_array)
@@ -146,9 +133,7 @@ class SolarFinancialModel:
         else:
             rec = "High Risk / Marginal Return: Consider a different system size or tariff scheme."
 
-        # ---------------------------------------------------------
-        # 3. GENERATING DATA ARRAYS FOR FRONTEND VISUALIZATION
-        # ---------------------------------------------------------
+
         yearly_net_cashflow = []
         baseline_cum_cashflow = [-initial_investment_lkr]
         p10_cum_cashflow = [-initial_investment_lkr]
@@ -168,9 +153,7 @@ class SolarFinancialModel:
             p10_cum_cashflow.append(round(float(current_cum * 0.85), 2))
             p90_cum_cashflow.append(round(float(current_cum * 1.15), 2))
 
-        # ---------------------------------------------------------
-        # 4. JSON PAYLOAD CONSTRUCTION
-        # ---------------------------------------------------------
+
         return {
             "System_Size_KW": system_size_kw,
             "Total_Investment_LKR": initial_investment_lkr,
@@ -202,9 +185,8 @@ class SolarFinancialModel:
         }
 
 
-# =========================================================
+
 # TEST RUN
-# =========================================================
 if __name__ == "__main__":
     logger.info("Running High-Performance Financial Component Test...")
     roi_model = SolarFinancialModel()
