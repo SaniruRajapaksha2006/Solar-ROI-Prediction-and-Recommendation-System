@@ -100,6 +100,10 @@ def assess():
             future_load   = forecaster.predict_future_load(
                 headroom.current_load_kW, months_ahead=12
             )
+            capacity_rec = get_capacity_recommendation(
+                blended_score,
+                headroom.available_headroom_kW
+            )
 
             recommendation = generate_recommendation(blended_score, headroom)
 
@@ -118,6 +122,7 @@ def assess():
                 'stabilityScore'  : rule_result.stability_score,
                 'suitabilityLabel': rule_result.suitability_label,
                 # Capacity
+                'capacityRecommendation': capacity_rec,
                 'capacity'        : headroom.transformer_capacity_kW,
                 'currentLoad'     : round(headroom.current_load_kW, 2),
                 'existingSolar'   : round(headroom.existing_solar_kW, 2),
