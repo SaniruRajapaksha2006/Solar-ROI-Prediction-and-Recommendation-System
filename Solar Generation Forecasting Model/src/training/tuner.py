@@ -4,6 +4,8 @@ Hyperparameter tuning using GridSearchCV with GroupKFold.
 
 import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+
+from utils.utils_config import get_training_config
 from sklearn.linear_model import Lasso, Ridge
 from sklearn.model_selection import GridSearchCV, GroupKFold
 from sklearn.pipeline import Pipeline
@@ -65,13 +67,13 @@ _MODEL_NAMES = {
 
 class ModelTuner:
 
-    def __init__(self, n_folds: int = 5):
+    def __init__(self, n_folds: int = None):
         """
         Args:
-            n_folds: Number of GroupKFold folds (default 5).
+            n_folds: Number of GroupKFold folds (default: from config.yaml training.n_folds).
                      Needs enough households to fill each fold.
         """
-        self.n_folds = n_folds
+        self.n_folds = n_folds if n_folds is not None else get_training_config()["n_folds"]
         self.cv_mae_scores: dict[str, float] = {}   # exposed to evaluator.py
 
     def tune_all(self, X_train: pd.DataFrame, y_train: pd.Series,

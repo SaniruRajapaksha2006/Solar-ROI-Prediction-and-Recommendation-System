@@ -26,15 +26,20 @@ from src.training.baseline import BaselineEvaluator
 from src.training.tuner import ModelTuner
 from src.training.evaluator import ModelEvaluator
 from src.training.saver import ModelSaver
+from utils.utils_config import load_config
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_PATH  = SCRIPT_DIR / "data" / "processed" / "final.csv"
+
+
+def _data_path() -> Path:
+    cfg = load_config()
+    return SCRIPT_DIR / cfg["paths"]["processed_dir"] / cfg["paths"]["final_dataset"]
 
 
 # -- Unified comparison table ---------------------------------------------------
 
-def comparison_table(
+def _comparison_table(
     physics_mae:    float,
     physics_rmse:    float,
     physics_r2:     float,
@@ -91,9 +96,10 @@ def comparison_table(
 # -- Main training flow ---------------------------------------------------------
 
 def train() -> None:
+    DATA_PATH = _data_path()
     if not DATA_PATH.exists():
         raise FileNotFoundError(
-            f"final.csv not found at {DATA_PATH}\n"
+            f"Processed dataset not found at {DATA_PATH}\n"
             "Run data_pipeline.py first."
         )
 
@@ -161,7 +167,7 @@ def train() -> None:
     )
 
     # -- 6. Thesis comparison table --------------------------------
-    comparison_table(
+    _comparison_table(
         physics_mae=physics_mae,
         physics_rmse=physics_rmse,
         physics_r2=physics_r2,
@@ -175,7 +181,7 @@ def train() -> None:
     ModelSaver().save(tuned_models, best_name)
 
     print("\n" + "=" * 60)
-    print("  TRAINING COMPLETE ✓")
+    print("  TRAINING COMPLETE")
     print(f"  Best ML model : {best_name}")
     print(f"  Physics MAE   : {physics_mae:.4f} kWh/kW")
     print(f"  Similarity MAE: {sim_metrics['MAE']:.4f} kWh/kW")

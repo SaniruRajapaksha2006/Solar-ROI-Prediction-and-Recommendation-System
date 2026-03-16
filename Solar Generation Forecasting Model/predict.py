@@ -16,8 +16,13 @@ from src.training.saver import ModelSaver
 
 
 SCRIPT_DIR   = Path(__file__).resolve().parent
-MODEL_PATH   = SCRIPT_DIR / "models" / "best_solar_pipeline.pkl"
-WEATHER_PATH = SCRIPT_DIR / "data" / "raw" / "data_2025.csv"
+
+
+def _model_path() -> Path:
+    return SCRIPT_DIR / load_config()["paths"]["model"]
+
+def _weather_path() -> Path:
+    return SCRIPT_DIR / load_config()["paths"]["weather_cache"]
 
 MONTH_NAMES  = ["Jan","Feb","Mar","Apr","May","Jun",
                 "Jul","Aug","Sep","Oct","Nov","Dec"]
@@ -40,8 +45,8 @@ def predict_monthly(inv_capacity_kw: float) -> pd.DataFrame:
     tariff     = cfg["roi"]["net_plus_tariff_lkr"]
     mae_per_kw = cfg["roi"]["mae_kwh_per_kw"]
 
-    pipeline   = ModelSaver().load(MODEL_PATH)
-    weather_df = DataLoader().load_local_weather(WEATHER_PATH)
+    pipeline   = ModelSaver().load(_model_path())
+    weather_df = DataLoader().load_local_weather(_weather_path())
 
     # Build feature matrix — no EXPORT_kWh at inference (inference path)
     weather_df["INV_CAPACITY"] = inv_capacity_kw
@@ -99,11 +104,11 @@ def _print_results(df: pd.DataFrame, inv_capacity_kw: float) -> None:
 # -- CLI ------------------------------------------------------------------------
 
 def main() -> None:
-    if not MODEL_PATH.exists():
-        print(f"[✗] Model not found: {MODEL_PATH}\n    Run model_trainer.py first.")
+    if not _model_path().exists():
+        print(f"Model not found: {_model_path()}\n    Run model_trainer.py first.")
         sys.exit(1)
-    if not WEATHER_PATH.exists():
-        print(f"[✗] Weather data not found: {WEATHER_PATH}\n    Run data_pipeline.py first.")
+    if not _weather_path().exists():
+        print(f"Weather data not found: {_weather_path()}\n    Run data_pipeline.py first.")
         sys.exit(1)
 
     max_kw = load_config()["residential"]["max_capacity_kw"]

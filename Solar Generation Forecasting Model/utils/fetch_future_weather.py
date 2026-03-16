@@ -29,16 +29,18 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 from utils.nasa_power import fetch_tmy
-
-# -- Constants -----------------------------------------------------------------
-MAHARAGAMA = {"name": "Maharagama", "lat": 6.8514, "lon": 79.9211}
-COLOMBO    = {"name": "Colombo",    "lat": 6.9271, "lon": 79.8612}
-
-C3S_DATASET    = "seasonal-monthly-single-levels"
-SRI_LANKA_AREA = [8.5, 79.0, 5.5, 82.0]   # [N, W, S, E]
+from utils.utils_config import load_config
 
 DAYS_IN_MONTH = {1:31, 2:28, 3:31, 4:30, 5:31, 6:30,
                  7:31, 8:31, 9:30, 10:31, 11:30, 12:31}
+
+
+def _locations():
+    cfg = load_config()["location"]
+    return [cfg["primary"], cfg["fallback"]]
+
+def _c3s_cfg():
+    return load_config()["c3s"]
 
 
 # ===============================================================================
@@ -147,6 +149,7 @@ def _fetch_c3s(lat: float, lon: float, start_year: int, start_month: int,
         return None
 
     import cdsapi
+    c3s = _c3s_cfg()
 
     os.makedirs(tmp_dir, exist_ok=True)
     cache_dir = os.path.join(tmp_dir, "cache")
@@ -160,8 +163,9 @@ def _fetch_c3s(lat: float, lon: float, start_year: int, start_month: int,
     if im < 1:
         im, iy = 12, iy - 1
 
+    max_lt = _c3s_cfg()["max_leadtime_months"]
     leadtimes = [(y - iy)*12 + (m - im) for y, m in months_needed
-                 if 1 <= (y - iy)*12 + (m - im) <= 6]
+                 if 1 <= (y - iy)*12 + (m - im) <= max_lt]
     if not leadtimes:
         print("Outside SEAS5 6-month window → NASA TMY")
         return None
@@ -182,9 +186,9 @@ def _fetch_c3s(lat: float, lon: float, start_year: int, start_month: int,
     if not os.path.exists(grib_path):
         print(f"  Downloading → {grib_path}  (Sri Lanka area only)")
         try:
-            cdsapi.Client(quiet=True).retrieve(C3S_DATASET, {
-                "originating_centre": "ecmwf", "system": "51",
-                "product_type": "monthly_mean",
+            cdsapi.Client(quiet=True).retrieve(c3s["dataset"], {
+                "originating_centre": c3s["originating_centre"], "system": c3s["system"],
+                "product_type": c3s["product_type"],
                 "variable": [
                     "2m_temperature", "maximum_2m_temperature_in_the_last_24_hours",
                     "minimum_2m_temperature_in_the_last_24_hours", "2m_dewpoint_temperature",
@@ -193,7 +197,7 @@ def _fetch_c3s(lat: float, lon: float, start_year: int, start_month: int,
                 ],
                 "year": str(iy), "month": f"{im:02d}",
                 "leadtime_month": [str(lt) for lt in leadtimes],
-                "area": SRI_LANKA_AREA, "format": "grib",
+                "area": c3s["sri_lanka_area"], "format": "grib",
             }, grib_path)
             print(f"{os.path.getsize(grib_path)/1e6:.2f} MB")
         except Exception as e:
@@ -230,30 +234,36 @@ def _fetch_c3s(lat: float, lon: float, start_year: int, start_month: int,
               ["Solar_Irradiance_GHI", "Temperature", "Max_Temperature",
                "Min_Temperature", "Humidity", "Precipitation", "Wind_Speed"]}
 
+    # Build month-position map: (year,month) -> index in months_needed
+    month_pos = {(y, m): idx for idx, (y, m) in enumerate(months_needed)}
+
     for i, lt in enumerate(leadtimes):
-        days = DAYS_IN_MONTH[months_needed[i][1]]
+        y, m = months_needed[i]
+        pos  = month_pos[(y, m)]   # correct position in n_months-sized result array
+        days = DAYS_IN_MONTH[m]
+
         for src, col in [("2t","Temperature"), ("mx2t24","Max_Temperature"), ("mn2t24","Min_Temperature")]:
             v = extracted.get(src, {}).get(lt, np.nan)
-            if not np.isnan(v): result[col][i] = round(v - 273.15, 2)
+            if not np.isnan(v): result[col][pos] = round(v - 273.15, 2)
 
-        td_k, t_c = extracted.get("2d", {}).get(lt, np.nan), result["Temperature"][i]
+        td_k, t_c = extracted.get("2d", {}).get(lt, np.nan), result["Temperature"][pos]
         if not np.isnan(td_k) and not np.isnan(t_c):
             td_c = td_k - 273.15
-            result["Humidity"][i] = round(min(
+            result["Humidity"][pos] = round(min(
                 100 * math.exp(17.625*td_c/(243.04+td_c)) / math.exp(17.625*t_c/(243.04+t_c)), 100.0), 1)
 
         ssrd = extracted.get("ssrd", {}).get(lt, np.nan)
-        if not np.isnan(ssrd): result["Solar_Irradiance_GHI"][i] = round(ssrd * 86400 / 3_600_000, 3)
+        if not np.isnan(ssrd): result["Solar_Irradiance_GHI"][pos] = round(ssrd * 86400 / 3_600_000, 3)
 
         tp = extracted.get("tp", {}).get(lt, np.nan)
-        if not np.isnan(tp): result["Precipitation"][i] = round(tp * 1000 / days, 3)
+        if not np.isnan(tp): result["Precipitation"][pos] = round(tp * 1000 / days, 3)
 
         u, v = extracted.get("u10", {}).get(lt, np.nan), extracted.get("v10", {}).get(lt, np.nan)
-        if not np.isnan(u) and not np.isnan(v): result["Wind_Speed"][i] = round(math.sqrt(u**2 + v**2), 2)
+        if not np.isnan(u) and not np.isnan(v): result["Wind_Speed"][pos] = round(math.sqrt(u**2 + v**2), 2)
 
     # Save cache
     rows = [{"leadtime": lt, "year": months_needed[i][0], "month": months_needed[i][1],
-             **{col: result[col][i] for col in result}}
+             **{col: result[col][month_pos[(months_needed[i][0], months_needed[i][1])]] for col in result}}
             for i, lt in enumerate(leadtimes)]
     pd.DataFrame(rows).to_csv(cache_csv, index=False)
     print(f"Cached: {cache_csv}")
@@ -286,7 +296,7 @@ def _merge(c3s: Optional[dict], tmy: dict, months: list) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     df["Max_Temperature"] = df["Max_Temperature"].fillna(df["Temperature"] + 3.0)
     df["Min_Temperature"] = df["Min_Temperature"].fillna(df["Temperature"] - 3.0)
-    df["Humidity"]        = df["Humidity"].fillna(75.0)
+    df["Humidity"]        = df["Humidity"].fillna(load_config()["physics"]["humidity_default"])
     return df
 
 
@@ -300,7 +310,7 @@ def fetch_weather_forecast(
     n_months:       int  = 12,
     nasa_only:      bool = False,
     force_download: bool = False,
-    tmp_dir:        str  = "/tmp/c3s_solar",
+    tmp_dir:        str  = None,
 ) -> pd.DataFrame:
     """
     Fetch 12-month future weather for Maharagama (fallback: Colombo).
@@ -322,6 +332,8 @@ def fetch_weather_forecast(
     start_year  = start_year  or today.year
     start_month = start_month or today.month
     months      = _months_to_fetch(start_year, start_month, n_months)
+    if tmp_dir is None:
+        tmp_dir = _c3s_cfg()["tmp_dir"]
 
     print("\n" + "="*60)
     print("  FUTURE WEATHER FORECAST")
@@ -331,7 +343,7 @@ def fetch_weather_forecast(
 
     # Step 1 — NASA TMY (always needed as C3S fallback)
     tmy = None
-    for loc in [MAHARAGAMA, COLOMBO]:
+    for loc in _locations():
         try:
             tmy = fetch_tmy(loc["lat"], loc["lon"])
             print(f"NASA TMY from {loc['name']}")
@@ -353,7 +365,7 @@ def fetch_weather_forecast(
 
     c3s = None
     if not nasa_only:
-        for loc in [MAHARAGAMA, COLOMBO]:
+        for loc in _locations():
             try:
                 c3s = _fetch_c3s(loc["lat"], loc["lon"],
                                   start_year, start_month, n_months, tmp_dir)

@@ -8,13 +8,15 @@ import pandas as pd
 from sklearn.model_selection import GroupShuffleSplit
 
 from src.features.selection import MODEL_FEATURES
+from utils.utils_config import load_config
 
 
 class DataSplitter:
 
-    def __init__(self, test_size: float = 0.2, random_state: int = 42):
-        self.test_size    = test_size
-        self.random_state = random_state
+    def __init__(self, test_size: float = None, random_state: int = None):
+        cfg = load_config()["training"]
+        self.test_size    = test_size    if test_size    is not None else cfg["test_size"]
+        self.random_state = random_state if random_state is not None else cfg["random_state"]
 
     def split(self, df: pd.DataFrame,
               target: str = "Efficiency",

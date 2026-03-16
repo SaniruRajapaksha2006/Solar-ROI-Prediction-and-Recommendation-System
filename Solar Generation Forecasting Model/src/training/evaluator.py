@@ -17,9 +17,12 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.pipeline import Pipeline
 
+from utils.utils_config import load_config
 
-OVERFIT_THRESHOLD  =  15.0   # kWh/kW gap that flags overfitting
-CV_LEAK_THRESHOLD  =  -5.0   # negative gap that suggests CV leakage
+
+def _get_thresholds():
+    t = load_config()["training"]
+    return t["overfit_threshold"], t["cv_leak_threshold"]
 
 
 class ModelEvaluator:
@@ -62,7 +65,8 @@ class ModelEvaluator:
 
             if gap is None:
                 overfit = "—"
-            elif gap > OVERFIT_THRESHOLD:
+            OVERFIT_THRESHOLD, CV_LEAK_THRESHOLD = _get_thresholds()
+            if gap > OVERFIT_THRESHOLD:
                 overfit = "OVERFIT"
             elif gap < CV_LEAK_THRESHOLD:
                 overfit = "CV leak?"

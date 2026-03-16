@@ -19,7 +19,7 @@ If it performs well, it shows the historical data has
 strong self-similarity. If ML beats it, it proves ML captures interactions
 that simple distance cannot.
 
-Comparison table position (thesis results chapter):
+Comparison table position:
   Method            | Approach      | Expected MAE | Key claim
   ------------------┼---------------┼--------------┼--------------------------
   Physics Formula   | Deterministic | Highest      | GHI × 0.80 × days
@@ -33,17 +33,16 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from utils.utils_config import load_config
+from utils.utils_config import get_similarity_config
 
 
 def _sim_cfg() -> dict:
-    return load_config()["similarity"]
+    return get_similarity_config()
 
 
 class SimilarityEngine:
     """
     K-Nearest Neighbours similarity model for solar Efficiency prediction.
-
     """
 
     def __init__(self, n_neighbors: int = None, metric: str = None):
