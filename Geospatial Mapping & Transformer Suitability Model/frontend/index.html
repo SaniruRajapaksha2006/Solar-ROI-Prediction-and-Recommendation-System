@@ -1146,6 +1146,37 @@ function renderDetailPanel(tf) {
       : ''}
 
     <div class="section-label-strip" style="margin-top:16px">Recommendation</div>
+    // ── Capacity recommendation block ─────────────────────────────────────────
+${tf.capacityRecommendation ? `
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.12em;
+                color:var(--muted);margin-bottom:8px;margin-top:16px">
+        RECOMMENDED SOLAR CAPACITY
+    </div>
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);
+                border-radius:12px;padding:16px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span style="font-family:var(--mono);font-size:11px;color:#6ee7b7">OPTIMAL SIZE</span>
+            <span style="font-family:var(--mono);font-size:28px;font-weight:700;color:#10b981">
+                ${tf.capacityRecommendation.recommendedCapacity_kW} kW
+            </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;
+                    font-family:var(--mono);font-size:11px;color:var(--muted);
+                    border-top:1px solid rgba(16,185,129,0.15);padding-top:10px">
+            <span>Safe Maximum</span>
+            <span style="color:#6ee7b7">${tf.capacityRecommendation.safeMaxCapacity_kW} kW</span>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:#94a3b8;line-height:1.5">
+            ${tf.capacityRecommendation.message}
+        </div>
+    </div>
+` : tf.score >= 60 ? `
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);
+                border-radius:10px;padding:12px;margin-bottom:12px;
+                font-family:var(--mono);font-size:11px;color:#fcd34d">
+        ⚠ Headroom too limited to recommend a standard capacity tier
+    </div>
+` : ''}
     <div class="rec-box">${tf.recommendation}</div>
   `;
 }
