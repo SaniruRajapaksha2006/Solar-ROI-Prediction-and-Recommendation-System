@@ -127,3 +127,39 @@ CAPACITY_TIERS       = [1.5, 3.0, 5.0, 7.5, 10.0, 15.0, 20.0]
 FEATURE_COLS         = ['current_load_kW', 'total_solar_capacity', 'utilization_rate',
                         'solar_penetration', 'demand_volatility', 'available_headroom',
                         'export_ratio']
+
+
+@st.cache_data(show_spinner="Loading transformer data…")
+def load_data(csv_path: str) -> pd.DataFrame:
+    df = pd.read_csv(csv_path)
+
+    unique_customers = df.drop_duplicates(subset=['TRANSFORMER_CODE', 'ACCOUNT_NO'])
+    solar_agg = unique_customers.groupby('TRANSFORMER_CODE').agg(
+        total_solar_capacity=('INV_CAPACITY', 'sum'),
+        solar_connections=('HAS_SOLAR', 'sum'),
+    ).reset_index()
+
+    consumption_agg = df.groupby('TRANSFORMER_CODE').agg(
+        TRANSFORMER_LAT=('TRANSFORMER_LAT', 'first'),
+        TRANSFORMER_LON=('TRANSFORMER_LON', 'first'),
+        avg_consumption=('NET_CONSUMPTION_kWh', 'mean'),
+        consumption_std=('NET_CONSUMPTION_kWh', 'std'),
+        avg_import=('IMPORT_kWh', 'mean'),
+        avg_export=('EXPORT_kWh', 'mean'),
+        num_customers=('ACCOUNT_NO', 'nunique'),
+    ).reset_index()
+
+    agg = consumption_agg.merge(solar_agg, on='TRANSFORMER_CODE', how='left')
+    agg['total_solar_capacity'] = agg['total_solar_capacity'].fillna(0)
+    agg['solar_connections'] = agg['solar_connections'].fillna(0)
+
+    cap = DEFAULT_CAPACITY_KW
+    agg['ESTIMATED_CAPACITY_kW'] = cap
+    agg['current_load_kW'] = (agg['avg_consumption'] / 720).fillna(0)
+    agg['utilization_rate'] = (agg['current_load_kW'] / cap).clip(0, 1)
+    agg['available_headroom'] = cap - agg['current_load_kW'] - agg['total_solar_capacity']
+    agg['solar_penetration'] = (agg['total_solar_capacity'] / cap).clip(0)
+    agg['demand_volatility'] = (agg['consumption_std'] / 720).fillna(0)
+    agg['export_ratio'] = (agg['avg_export'] / (agg['avg_import'] + 1)).fillna(0)
+
+    return agg.fillna(0)
