@@ -322,8 +322,129 @@ async def forecast(user_input: UserInput, background_tasks: BackgroundTasks):
         logger.error(f"Error in forecast endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/tariff/calculate")
+async def calculate_tariff(consumption: float, tariff: str = "D1",
+                           generation: Optional[float] = None):
+    # Calculate electricity bill with optional net metering
+
+    try:
+        if generation and generation > 0:
+            # With net metering
+            calculator = get_net_metering()
+            bill = calculator.calculate_monthly_bill(consumption, generation, tariff)
+        else:
+            # Without solar
+            calculator = get_tariff_calculator()
+            bill = calculator.calculate_monthly_bill(consumption, tariff)
+
+        return {
+            "status": "success",
+            "data": bill
+        }
+
+    except Exception as e:
+        logger.error(f"Error in tariff calculation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/similar/accounts")
+async def find_similar_accounts(lat: float, lon: float,
+                                months: str, tariff: str = "D1"):
+    # Find similar accounts for a location
+    try:
+        # Parse months string (format: "9:350.5,10:420.2,11:380.1")
+        consumption_months = {}
+        for pair in months.split(','):
+            month, value = pair.split(':')
+            consumption_months[int(month)] = float(value)
+
+        user_data = {
+            'latitude': lat,
+            'longitude': lon,
+            'consumption_months': consumption_months,
+            'tariff': tariff,
+            'phase': 'SP',
+            'has_solar': 0
+        }
+
+        similar = get_similarity_matcher().find_similar_households_safe(user_data)
+
+        # Get details for top matches
+        accounts = []
+        for account, score in similar[:5]:
+            profile = get_data_loader().get_customer_profile(account)
+            if profile:
+                accounts.append({
+                    'account': account[:8] + '...',
+                    'similarity': score,
+                    'annual_consumption': profile['annual_stats']['total'],
+                    'monthly_average': profile['annual_stats']['average']
+                })
+
+        return {
+            "status": "success",
+            "data": {
+                "total_found": len(similar),
+                "accounts": accounts
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error finding similar accounts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/models/info")
+async def model_info():
+    # Get information about available models
+    lstm = get_lstm_forecaster()
+
+    return {
+        "models": {
+            "lstm": {
+                "available": lstm.is_trained if lstm else False,
+                "architecture": lstm.architecture if lstm else None,
+                "layers": lstm.layers if lstm else None,
+                "lookback": lstm.lookback if lstm else None
+            },
+            "pattern_based": {
+                "available": True,
+                "description": "Pattern-based fallback method"
+            },
+            "ensemble": {
+                "available": True,
+                "weights": config['forecasting']['ensemble']
+            }
+        },
+        "tariffs": list(config['tariff'].keys()) if 'tariff' in config else []
+    }
+
+
+@app.post("/train/trigger")
+async def trigger_training(background_tasks: BackgroundTasks):
+    # Trigger model retraining (admin only)
+
+    # In production, add authentication
+    background_tasks.add_task(train_model_background)
+
+    return {
+        "status": "success",
+        "message": "Training started in background"
+    }
+
+
+def train_model_background():
+    # Background task for model training
+    logger.info("Starting background model training")
+    try:
+        from scripts.train_model import train_lstm_model
+        train_lstm_model(config)
+        logger.info("Background training completed")
+    except Exception as e:
+        logger.error(f"Background training failed: {e}")
+
 def log_request(user_data: Dict, forecast_stats: Dict):
-    """Log request for monitoring"""
+    # Log request for monitoring
     log_entry = {
         'timestamp': datetime.now().isoformat(),
         'user_location': (user_data['latitude'], user_data['longitude']),
@@ -339,3 +460,12 @@ def log_request(user_data: Dict, forecast_stats: Dict):
     import json
     with open(log_file, 'a') as f:
         f.write(json.dumps(log_entry) + '\n')
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "fastapi_app:app",
+        host=config['api']['host'],
+        port=config['api']['port'],
+        workers=config['api']['workers'],
+        reload=True
+    )
