@@ -196,3 +196,55 @@ CLUSTER_NAMES = {
     1: 'Balanced Load — Medium Risk',
     2: 'High Utilisation — High Risk',
 }
+
+
+def score_color(s):
+    if s >= 80: return "score-green"
+    if s >= 60: return "score-blue"
+    if s >= 40: return "score-amber"
+    return "score-red"
+
+
+def score_label(s):
+    if s >= 80: return "IDEAL"
+    if s >= 60: return "GOOD"
+    if s >= 40: return "FAIR"
+    return "POOR"
+
+
+def marker_color(s):
+    if s >= 80: return "green"
+    if s >= 60: return "blue"
+    if s >= 40: return "orange"
+    return "red"
+
+
+def util_color(u):
+    if u <= 70: return "score-green"
+    if u <= 85: return "score-amber"
+    return "score-red"
+
+
+def get_capacity_recommendation(score, available_headroom):
+    if score < 60:
+        return None
+    safe_max = available_headroom * 0.80
+    recommended = None
+    for tier in CAPACITY_TIERS:
+        if tier <= safe_max:
+            recommended = tier
+    if recommended is None:
+        return None
+    return {'kw': recommended, 'safe_max': round(safe_max, 1)}
+
+
+def generate_recommendation(score, headroom):
+    if score >= 80:
+        return f"Highly suitable. {headroom['available_headroom_kW']:.1f} kW available headroom. Proceed with grid connection."
+    if score >= 60:
+        return f"Conditionally suitable. Post-connection utilisation will be {headroom['utilization_after'] * 100:.1f}%. Review with utility provider."
+    if score >= 40:
+        return "Marginal suitability due to limited headroom. An upgrade assessment is recommended before connecting."
+    return f"Not suitable. Only {headroom['available_headroom_kW']:.1f} kW headroom available. Select a different transformer."
+
+
