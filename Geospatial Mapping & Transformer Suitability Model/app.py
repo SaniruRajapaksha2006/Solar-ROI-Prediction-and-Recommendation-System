@@ -392,3 +392,147 @@ def build_map(results, user_lat, user_lon, selected_code=None):
         ).add_to(m)
 
     return m
+
+
+def render_detail(tf):
+    col = score_color(tf['score'])
+
+    st.markdown(f"### `{tf['code']}`")
+    st.markdown(f"<span style='color:#64748b;font-size:12px'>{tf['cluster']} · Rank #{tf['rank']}</span>",
+                unsafe_allow_html=True)
+
+    # Overall score
+    st.markdown(f"""
+    <div style='background:#1c2539;border:1px solid #1f2d45;border-radius:12px;
+                padding:16px;text-align:center;margin:12px 0'>
+        <div class='{col}' style='font-size:40px;font-family:monospace;font-weight:700'>
+            {tf['score']:.1f}
+        </div>
+        <div style='font-size:11px;color:#64748b;font-family:monospace;
+                    letter-spacing:0.1em;margin-top:4px'>
+            BLENDED SUITABILITY SCORE / 100
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Sub scores
+    c1, c2, c3 = st.columns(3)
+    for col_ui, label, val in [
+        (c1, "HEADROOM", tf['headroomScore']),
+        (c2, "DISTANCE", tf['distanceScore']),
+        (c3, "STABILITY", tf['stabilityScore']),
+    ]:
+        col_ui.markdown(f"""
+        <div style='background:#1c2539;border:1px solid #1f2d45;border-radius:8px;
+                    padding:10px;text-align:center'>
+            <div style='font-size:9px;color:#64748b;font-family:monospace'>{label}</div>
+            <div style='font-size:18px;font-weight:700;font-family:monospace;color:#00d4ff'>
+                {val:.0f}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
+
+    # Rule vs ML
+    c1, c2 = st.columns(2)
+    c1.markdown(f"""
+    <div style='background:#1c2539;border:1px solid #1f2d45;border-radius:8px;padding:12px'>
+        <div style='font-size:10px;color:#64748b;font-family:monospace'>RULE SCORE</div>
+        <div style='font-size:20px;font-weight:700;font-family:monospace;color:#7c3aed'>
+            {tf['ruleScore']:.1f}
+        </div>
+    </div>""", unsafe_allow_html=True)
+    c2.markdown(f"""
+    <div style='background:#1c2539;border:1px solid #1f2d45;border-radius:8px;padding:12px'>
+        <div style='font-size:10px;color:#64748b;font-family:monospace'>ML SCORE</div>
+        <div style='font-size:20px;font-weight:700;font-family:monospace;color:#00d4ff'>
+            {tf['mlScore']:.1f}
+        </div>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
+
+    # Utilisation bars
+    for label, val in [("UTILISATION BEFORE", tf['utilBefore']),
+                       ("UTILISATION AFTER", tf['utilAfter'])]:
+        uc = "#10b981" if val <= 70 else "#f59e0b" if val <= 85 else "#ef4444"
+        st.markdown(f"""
+        <div style='margin-bottom:10px'>
+            <div style='display:flex;justify-content:space-between;
+                        font-family:monospace;font-size:11px;color:#64748b;margin-bottom:4px'>
+                <span>{label}</span>
+                <span style='color:{uc}'>{val:.1f}%</span>
+            </div>
+            <div style='background:#1c2539;border-radius:3px;height:6px;overflow:hidden'>
+                <div style='width:{min(val, 100):.0f}%;height:100%;
+                            background:{uc};border-radius:3px'></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Metrics grid
+    metrics = [
+        ("DISTANCE", f"{tf['distance']:.0f} m"),
+        ("CAPACITY", f"{tf['capacity']:.0f} kW"),
+        ("AVAILABLE", f"{tf['availableHeadroom']:.1f} kW"),
+        ("SAFE HEADROOM", f"{tf['safeHeadroom']:.1f} kW"),
+        ("EXISTING SOLAR", f"{tf['existingSolar']:.1f} kW"),
+        ("LOAD +12M", f"{tf['futureLoad12m']:.1f} kW"),
+    ]
+    cols = st.columns(2)
+    for idx, (lbl, val) in enumerate(metrics):
+        cols[idx % 2].markdown(f"""
+        <div style='background:#1c2539;border:1px solid #1f2d45;border-radius:8px;
+                    padding:10px;margin-bottom:6px'>
+            <div style='font-size:10px;color:#64748b;font-family:monospace'>{lbl}</div>
+            <div style='font-size:15px;font-weight:700;font-family:monospace;color:#e2e8f0'>
+                {val}
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+    # Flags
+    if tf['canSupport']:
+        st.markdown(
+            f"<div class='flag-green'>✓ &nbsp;Transformer can support {tf['existingSolar'] + (tf['capacityRec']['kw'] if tf['capacityRec'] else 0):.1f} kW</div>",
+            unsafe_allow_html=True)
+    else:
+        st.markdown("<div class='flag-red'>✗ &nbsp;Insufficient capacity</div>",
+                    unsafe_allow_html=True)
+
+    if tf['curtailmentRisk']:
+        st.markdown("<div class='flag-red'>⚡ &nbsp;Curtailment risk — utilisation > 75%</div>",
+                    unsafe_allow_html=True)
+
+    # Capacity recommendation
+    if tf['capacityRec']:
+        st.markdown("<div class='section-label' style='margin-top:16px'>RECOMMENDED SOLAR CAPACITY</div>",
+                    unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class='cap-box'>
+            <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px'>
+                <span style='font-family:monospace;font-size:11px;color:#6ee7b7'>OPTIMAL SIZE</span>
+                <span class='cap-val'>{tf['capacityRec']['kw']} kW</span>
+            </div>
+            <div style='border-top:1px solid rgba(16,185,129,0.15);padding-top:10px;
+                        display:flex;justify-content:space-between;
+                        font-family:monospace;font-size:11px;color:#64748b'>
+                <span>Safe Maximum</span>
+                <span style='color:#6ee7b7'>{tf['capacityRec']['safe_max']} kW</span>
+            </div>
+            <div style='margin-top:10px;font-size:12px;color:#94a3b8;line-height:1.5'>
+                Based on available headroom, a {tf['capacityRec']['kw']} kW system
+                is the optimal capacity for this transformer.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    elif tf['score'] >= 60:
+        st.markdown(
+            "<div class='flag-red' style='margin-top:12px'>⚠ Headroom too limited to recommend a standard capacity tier</div>",
+            unsafe_allow_html=True)
+
+    # Recommendation
+    st.markdown("<div class='section-label' style='margin-top:16px'>RECOMMENDATION</div>",
+                unsafe_allow_html=True)
+    st.markdown(f"<div class='rec-box'>{tf['recommendation']}</div>",
+                unsafe_allow_html=True)
