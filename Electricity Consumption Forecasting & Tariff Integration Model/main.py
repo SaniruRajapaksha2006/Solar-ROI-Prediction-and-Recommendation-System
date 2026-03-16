@@ -184,3 +184,57 @@ def load_user_input(args, logger):
         raise
 
     return user_data
+
+def run_single_user(args, logger, config, results_dir):
+    # Run forecasting for a single user
+    logger.info("=" * 80)
+    logger.info("COMPONENT 3: Single User Mode")
+    logger.info("=" * 80)
+
+    # Load user input
+    user_data = load_user_input(args, logger)
+
+    # Initialize components
+    data_loader = ElectricityDataLoader(config)
+    quality_monitor = DataQualityMonitor(config)
+    feature_engineer = FeatureEngineer(config)
+    similarity_matcher = SimilarityMatcher(data_loader, config)
+    pattern_extractor = ConsumptionPatternExtractor(data_loader, config)
+    lstm_forecaster = LSTMForecaster(config)
+
+    model_path = Path("models/saved/lstm_model.h5")
+    if model_path.exists():
+        try:
+            lstm_forecaster.load(model_path)
+        except Exception as e:
+            print(f"Error loading model normally: {e}")
+            print("Attempting to load with compile=False...")
+
+            # Load with compile=False to bypass metric issues
+            import tensorflow as tf
+            model = tf.keras.models.load_model(model_path, compile=False)
+            lstm_forecaster.model = model
+            lstm_forecaster.is_trained = True
+            print("Model loaded successfully with compile=False")
+        print("LSTM model loaded successfully")
+    else:
+        print("LSTM model file not found")
+
+    tariff_calculator = PUCsLTariffCalculator(config)
+    net_metering = NetMeteringCalculator(tariff_calculator)
+
+    # Initialize ensemble
+    ensemble = EnsembleForecaster(config)
+    ensemble.add_forecaster('lstm', lstm_forecaster, config['forecasting']['ensemble']['lstm_weight'])
+    ensemble.add_forecaster('pattern', pattern_extractor, config['forecasting']['ensemble']['pattern_weight'])
+
+    with Timer() as timer:
+        # Step 1: Load dataset
+        logger.info("\n Step 1: Loading dataset...")
+        df = data_loader.load_dataset()
+
+        # Check data quality
+        quality_report = quality_monitor.check_data_quality(df)
+        logger.info(f"Data quality: {quality_report.overall_score:.2%}")
+
+    return None, None
