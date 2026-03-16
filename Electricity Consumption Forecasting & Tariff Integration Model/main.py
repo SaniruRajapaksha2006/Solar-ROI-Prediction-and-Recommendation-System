@@ -237,4 +237,154 @@ def run_single_user(args, logger, config, results_dir):
         quality_report = quality_monitor.check_data_quality(df)
         logger.info(f"Data quality: {quality_report.overall_score:.2%}")
 
-    return None, None
+        # Step 2: Find similar households (no look-ahead bias)
+        logger.info("\nStep 2: Finding similar households...")
+        similar_households = similarity_matcher.find_similar_households_safe(user_data)
+
+        if not similar_households:
+            logger.warning("No similar households found, using pattern-based fallback")
+            method = 'pattern_only'
+        else:
+            logger.info(f"Found {len(similar_households)} similar households")
+            method = args.method
+
+        # Step 3: Engineer features
+        logger.info("\nStep 3: Engineering features...")
+        features = feature_engineer.create_all_features(
+            user_data,
+            similar_households,
+            df
+        )
+
+        # Step 4: Generate forecast
+        logger.info(f"\nStep 4: Generating forecast using {method}...")
+
+        if method == 'ensemble':
+            forecast_result = ensemble.forecast(user_data, similar_households, features)
+        elif method == 'lstm' and len(similar_households) > 5:
+            forecast_result = lstm_forecaster.forecast(user_data, features)
+        else:
+            forecast_result = pattern_extractor.extract_pattern_with_forecast(
+                similar_households, user_data
+            )
+
+        # Step 5: Calculate bills (without solar)
+        logger.info("\nStep 5: Calculating electricity bills...")
+        monthly_consumption = forecast_result['forecast']['monthly_values']
+        annual_bills = tariff_calculator.calculate_annual_bills(
+            monthly_consumption, user_data['tariff']
+        )
+
+        # Step 6: Calculate net metering (if solar)
+        if user_data['has_solar']:
+            logger.info("\nStep 6: Applying net metering...")
+            # This would use Component 1's generation forecast
+            # Placeholder for now
+            pass
+
+        # Step 7: Prepare results
+        logger.info("\nStep 7: Preparing final results...")
+
+        final_results = {
+            'metadata': {
+                'component': 'Component 3 - Electricity Consumption Forecasting',
+                'version': '2.0',
+                'execution_timestamp': datetime.now().isoformat(),
+                'execution_time_seconds': timer.elapsed,
+                'method': method,
+                # FIX: Remove config_path or use config variable
+                'config_used': 'config/config.yaml',  # Just use a string
+                'results_directory': str(results_dir)
+            },
+            'user_input': user_data,
+            'data_quality': quality_report,
+            'similarity_analysis': {
+                'similar_households_found': len(similar_households),
+                'top_similar_households': [
+                    {'account': acc[:8] + '...', 'similarity': score}
+                    for acc, score in (similar_households[:5] if similar_households else [])
+                ]
+            },
+            'forecast': forecast_result,
+            'billing': annual_bills
+        }
+
+        # Step 8: Export for Component 4
+        component4_data = {
+            'consumption_forecast': {
+                'monthly_kwh': forecast_result['forecast']['monthly_values'],
+                'monthly_confidence': forecast_result['forecast']['monthly_confidence'],
+                'uncertainty_ranges': forecast_result['forecast'].get('uncertainty_ranges', {}),
+                'annual_total_kwh': forecast_result['forecast']['statistics']['annual_total'],
+                'overall_confidence': forecast_result['forecast']['statistics']['overall_confidence'],
+                'method': method
+            },
+            'billing_analysis': {
+                'monthly_bills': annual_bills['monthly_bills'],
+                'annual_summary': annual_bills['annual_summary']
+            },
+            'user_profile': {
+                'location': {
+                    'latitude': user_data['latitude'],
+                    'longitude': user_data['longitude']
+                },
+                'tariff': user_data['tariff'],
+                'household_size': user_data.get('household_size', 4),
+                'has_solar': user_data.get('has_solar', 0)
+            },
+            'metadata': {
+                'forecast_timestamp': forecast_result['metadata']['generated_at'],
+                'forecast_confidence': forecast_result['forecast']['statistics']['overall_confidence'],
+                'similar_households_used': len(similar_households)
+            }
+        }
+
+        # Step 9: Save results (already there)
+        results_file = results_dir / 'component3_results.json'
+        save_json(final_results, str(results_file))
+
+        component4_file = results_dir / 'for_component4.json'
+        save_json(component4_data, str(component4_file))
+
+        # Step 9.5: Generate and save text files for easy viewing
+        logger.info("\nStep 9.5: Saving human-readable text files...")
+
+        try:
+            # Pattern analysis text
+            if hasattr(pattern_extractor, 'format_pattern_for_display'):
+                pattern_display = pattern_extractor.format_pattern_for_display(
+                    final_results['forecast']
+                )
+                with open(results_dir / 'pattern_analysis.txt', 'w') as f:
+                    f.write(pattern_display)
+                logger.info("  Saved pattern_analysis.txt")
+        except Exception as e:
+            logger.warning(f"  Could not save pattern_analysis.txt: {e}")
+
+        try:
+            # Consumption forecast text
+            if hasattr(ensemble, 'format_forecast_for_display') or hasattr(pattern_extractor,
+                                                                           'format_forecast_for_display'):
+                # Try to get from ensemble first, then pattern
+                if hasattr(ensemble, 'format_forecast_for_display'):
+                    forecast_display = ensemble.format_forecast_for_display(forecast_result)
+                else:
+                    forecast_display = pattern_extractor.format_forecast_for_display(forecast_result)
+
+                with open(results_dir / 'consumption_forecast.txt', 'w') as f:
+                    f.write(forecast_display)
+                logger.info("  Saved consumption_forecast.txt")
+        except Exception as e:
+            logger.warning(f"  Could not save consumption_forecast.txt: {e}")
+
+        try:
+            # Electricity bills text
+            if hasattr(tariff_calculator, 'format_annual_bills_for_display'):
+                bills_display = tariff_calculator.format_annual_bills_for_display(annual_bills)
+                with open(results_dir / 'electricity_bills.txt', 'w') as f:
+                    f.write(bills_display)
+                logger.info("  Saved electricity_bills.txt")
+        except Exception as e:
+            logger.warning(f"  Could not save electricity_bills.txt: {e}")
+
+    return final_results, component4_data
