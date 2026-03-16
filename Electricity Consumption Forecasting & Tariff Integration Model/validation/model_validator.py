@@ -20,9 +20,9 @@ def find_project_root():
 project_root = find_project_root()
 sys.path.insert(0, str(project_root))
 
-from .time_series_split import TemporalSplitter
-from ..models.lstm_model import LSTMForecaster
-from ..features.feature_engineer import FeatureEngineer
+from time_series_split import TemporalSplitter
+from models.lstm_model import LSTMForecaster
+from features.feature_engineer import FeatureEngineer
 
 logger = logging.getLogger(__name__)
 

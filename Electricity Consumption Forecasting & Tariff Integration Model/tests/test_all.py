@@ -19,18 +19,18 @@ def find_project_root():
 project_root = find_project_root()
 sys.path.insert(0, str(project_root))
 
-from ..src.data_loader import ElectricityDataLoader
-from ..src.similarity_matcher import SimilarityMatcher
-from ..src.pattern_extractor import ConsumptionPatternExtractor
-from ..models.lstm_model import LSTMForecaster
-from ..src.forecaster import EnsembleForecaster
-from ..src.tariff_calculator import PUCsLTariffCalculator, NetMeteringCalculator
-from ..features.cyclical_encoder import CyclicalFeatureEncoder
-from ..features.feature_engineer import FeatureEngineer
-from ..validation.model_validator import ModelValidator
-from ..validation.time_series_split import TemporalSplitter
-from ..src.utils import validate_user_input, calculate_mae, calculate_rmse, calculate_mape
-from ..data_quality import DataQualityMonitor
+from data_loader import ElectricityDataLoader
+from similarity_matcher import SimilarityMatcher
+from pattern_extractor import ConsumptionPatternExtractor
+from models.lstm_model import LSTMForecaster
+from forecaster import EnsembleForecaster
+from tariff_calculator import PUCsLTariffCalculator, NetMeteringCalculator
+from features.cyclical_encoder import CyclicalFeatureEncoder
+from features.feature_engineer import FeatureEngineer
+from validation.model_validator import ModelValidator
+from validation.time_series_split import TemporalSplitter
+from utils import validate_user_input, calculate_mae, calculate_rmse, calculate_mape
+from data_quality import DataQualityMonitor
 
 
 @pytest.fixture

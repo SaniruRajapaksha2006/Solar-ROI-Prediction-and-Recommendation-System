@@ -20,12 +20,12 @@ def find_project_root():
 project_root = find_project_root()
 sys.path.insert(0, str(project_root))
 
-from ..src.data_loader import ElectricityDataLoader
-from ..models.lstm_model import LSTMForecaster
-from ..features.feature_engineer import FeatureEngineer
-from ..validation.model_validator import ModelValidator
-from ..validation.time_series_split import TemporalSplitter
-from ..src.utils import load_config, setup_logging, save_json, create_results_directory
+from src.data_loader import ElectricityDataLoader
+from models.lstm_model import LSTMForecaster
+from features.feature_engineer import FeatureEngineer
+from validation.model_validator import ModelValidator
+from validation.time_series_split import TemporalSplitter
+from utils import load_config, setup_logging, save_json, create_results_directory
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +248,7 @@ def main():
         results_file = results_dir / "evaluation_results.json"
         save_json(results, str(results_file))
 
-        logger.info(f"\n✅ Evaluation completed successfully")
+        logger.info(f"\nEvaluation completed successfully")
         logger.info(f"Results saved to {results_dir}")
         return 0
 

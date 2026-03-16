@@ -1,3 +1,8 @@
+"""
+LSTM Model for Consumption Forecasting
+Primary forecasting method for Component 3
+"""
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model, load_model
@@ -22,6 +27,12 @@ class LSTMForecaster:
     """
 
     def __init__(self, config: Dict):
+        """
+        Initialize LSTM forecaster
+
+        Args:
+            config: Configuration dictionary
+        """
         self.config = config
         self.model = None
         self.scaler_X = None
@@ -42,6 +53,15 @@ class LSTMForecaster:
         self.horizon = lstm_config.get('forecast_horizon', 12)
 
     def build_model(self, input_shape: Tuple[int, int]) -> tf.keras.Model:
+        """
+        Build LSTM model based on configuration
+
+        Args:
+            input_shape: (sequence_length, n_features)
+
+        Returns:
+            Compiled Keras model
+        """
         self.input_shape = input_shape
 
         if self.architecture == 'bidirectional':
@@ -53,8 +73,9 @@ class LSTMForecaster:
 
         # Compile model
         def weighted_mae(y_true, y_pred):
-            # Weighted MAE that penalizes errors on low consumption more heavily
-
+            """
+            Weighted MAE that penalizes errors on low consumption more heavily
+            """
             mae = tf.abs(y_true - y_pred)
 
             # Higher weight for low consumption values (under 400 kWh)
@@ -79,7 +100,7 @@ class LSTMForecaster:
         return model
 
     def _build_standard_lstm(self) -> tf.keras.Model:
-        # Build standard LSTM (unidirectional)
+        """Build standard LSTM (unidirectional)"""
         model = Sequential()
 
         # First LSTM layer
@@ -114,7 +135,7 @@ class LSTMForecaster:
         return model
 
     def _build_bidirectional_lstm(self) -> tf.keras.Model:
-        # Build bidirectional LSTM
+        """Build bidirectional LSTM"""
         model = Sequential()
 
         # First bidirectional layer
@@ -147,7 +168,7 @@ class LSTMForecaster:
         return model
 
     def _build_encoder_decoder(self) -> tf.keras.Model:
-        # Build encoder-decoder architecture for seq2seq
+        """Build encoder-decoder architecture for seq2seq"""
         # Encoder
         encoder_inputs = Input(shape=self.input_shape)
         encoder = LSTM(self.layers[0], return_state=True)
@@ -167,6 +188,16 @@ class LSTMForecaster:
         return model
 
     def prepare_sequences(self, X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Prepare sequences for LSTM training
+
+        Args:
+            X: Feature matrix
+            y: Target values
+
+        Returns:
+            X_seq, y_seq ready for LSTM
+        """
         X_seq, y_seq = [], []
 
         for i in range(len(X) - self.lookback - self.horizon + 1):
@@ -178,7 +209,18 @@ class LSTMForecaster:
     def train(self, X_train: np.ndarray, y_train: np.ndarray,
               X_val: Optional[np.ndarray] = None,
               y_val: Optional[np.ndarray] = None) -> Dict:
+        """
+        Train LSTM model
 
+        Args:
+            X_train: Training features
+            y_train: Training targets
+            X_val: Validation features
+            y_val: Validation targets
+
+        Returns:
+            Training history
+        """
         if self.model is None:
             # Infer input shape from data
             if len(X_train.shape) == 2:
@@ -224,7 +266,15 @@ class LSTMForecaster:
         return self.history.history
 
     def predict(self, X: np.ndarray) -> np.ndarray:
+        """
+        Generate predictions
 
+        Args:
+            X: Input features
+
+        Returns:
+            Predictions
+        """
         if not self.is_trained:
             raise ValueError("Model must be trained before prediction")
 
@@ -241,7 +291,7 @@ class LSTMForecaster:
     def forecast(self, user_data: Dict, features: Dict) -> Dict:
         """
         Generate forecast for a single user
-        Aligns months based on user's last month
+        Now correctly aligns months based on user's last month
         """
         if not self.is_trained:
             logger.warning("Model not trained, cannot generate LSTM forecast")
@@ -321,6 +371,7 @@ class LSTMForecaster:
                 }
             }
 
+            # Simple uncertainty (20% for LSTM)
             uncertainty = {}
             for month in range(1, 13):
                 val = monthly_forecast[month]
@@ -355,13 +406,13 @@ class LSTMForecaster:
             return None
 
     def _get_month_name(self, month_num: int) -> str:
-        # Get month name from number
+        """Get month name from number"""
         month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         return month_names[month_num - 1] if 1 <= month_num <= 12 else f"Month {month_num}"
 
     def _estimate_confidence(self) -> float:
-        # Estimate confidence based on training history
+        """Estimate confidence based on training history"""
         if not self.history:
             return 0.5
 
@@ -376,9 +427,10 @@ class LSTMForecaster:
         confidence = max(0.3, min(0.95, 1.0 - (final_loss / 1000)))
         return float(confidence)
 
-    def _create_forecast_result(self, monthly_forecast: Dict[int, float], confidence: float,
+    def _create_forecast_result(self, monthly_forecast: Dict[int, float],
+                               confidence: float,
                                user_data: Dict) -> Dict:
-        # Create forecast result dictionary
+        """Create forecast result dictionary"""
         values = list(monthly_forecast.values())
         annual_total = sum(values)
         annual_avg = annual_total / 12
@@ -392,6 +444,7 @@ class LSTMForecaster:
             'overall_confidence': confidence
         }
 
+        # Simple uncertainty (20% for LSTM)
         uncertainty = {}
         for month in range(1, 13):
             val = monthly_forecast[month]
@@ -434,7 +487,7 @@ class LSTMForecaster:
         return result
 
     def _get_sri_lanka_season(self, month: int) -> str:
-        # Get Sri Lankan season for month
+        """Get Sri Lankan season for month"""
         if month in [12, 1, 2]:
             return "NE Monsoon"
         elif month in [3, 4]:
@@ -445,6 +498,12 @@ class LSTMForecaster:
             return "Dry Season"
 
     def save(self, filepath: Union[str, Path]):
+        """
+        Save model and scalers
+
+        Args:
+            filepath: Path to save model
+        """
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
@@ -469,11 +528,12 @@ class LSTMForecaster:
         logger.info(f"Model saved to {filepath}")
 
     def load(self, filepath: Union[str, Path]):
-        # Load saved model with proper custom objects
-
+        """
+        Load saved model with proper custom objects
+        """
         filepath = Path(filepath)
-        print(f"Attempting to load model from: {filepath}")
-        print(f"File exists: {filepath.exists()}")
+        print(f"🔍 Attempting to load model from: {filepath}")
+        print(f"   File exists: {filepath.exists()}")
 
         # Define custom objects for loading
         from tensorflow.keras.losses import MeanAbsoluteError
@@ -499,14 +559,14 @@ class LSTMForecaster:
                 custom_objects=custom_objects,
                 compile=True  # Keep compilation for metrics
             )
-            print(f"Model loaded successfully with custom objects")
+            print(f"✅ Model loaded successfully with custom objects")
         except Exception as e:
-            print(f"Error loading with custom objects: {e}")
+            print(f"⚠️ Error loading with custom objects: {e}")
             print("Attempting to load with default settings...")
 
             # Try loading with default settings
             self.model = load_model(str(filepath), compile=False)
-            print(f"Model loaded with compile=False")
+            print(f"✅ Model loaded with compile=False")
 
             # Recompile the model
             self.model.compile(
@@ -514,7 +574,7 @@ class LSTMForecaster:
                 loss='mae',
                 metrics=['mae']
             )
-            print(f"Model recompiled successfully")
+            print(f"✅ Model recompiled successfully")
 
         # Load metadata
         metadata_path = filepath.with_suffix('.pkl')
@@ -534,4 +594,4 @@ class LSTMForecaster:
             self.is_trained = True
             print(f"   No metadata found, assuming model is trained")
 
-        print(f"Model ready for predictions")
+        print(f"✅ Model ready for predictions")

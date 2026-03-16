@@ -160,8 +160,8 @@ def load_user_input(args, logger):
     else:
         # Use default sample (Maharagama)
         user_data = {
-            'latitude': 6.9271,
-            'longitude': 79.8612,
+            'latitude': 6.8511,
+            'longitude': 79.9212,
             'consumption_months': {
                 9: 350.5,  # September
                 10: 420.2,  # October
@@ -207,7 +207,7 @@ def run_single_user(args, logger, config, results_dir):
         try:
             lstm_forecaster.load(model_path)
         except Exception as e:
-            print(f"Error loading model normally: {e}")
+            print(f"⚠️ Error loading model normally: {e}")
             print("Attempting to load with compile=False...")
 
             # Load with compile=False to bypass metric issues
@@ -215,10 +215,10 @@ def run_single_user(args, logger, config, results_dir):
             model = tf.keras.models.load_model(model_path, compile=False)
             lstm_forecaster.model = model
             lstm_forecaster.is_trained = True
-            print("Model loaded successfully with compile=False")
-        print("LSTM model loaded successfully")
+            print("✅ Model loaded successfully with compile=False")
+        print("✅ LSTM model loaded successfully")
     else:
-        print("LSTM model file not found")
+        print("❌ LSTM model file not found")
 
     tariff_calculator = PUCsLTariffCalculator(config)
     net_metering = NetMeteringCalculator(tariff_calculator)
@@ -285,13 +285,15 @@ def run_single_user(args, logger, config, results_dir):
         # Step 7: Prepare results
         logger.info("\nStep 7: Preparing final results...")
 
+        actual_method = forecast_result['metadata']['forecast_method']
+
         final_results = {
             'metadata': {
                 'component': 'Component 3 - Electricity Consumption Forecasting',
                 'version': '2.0',
                 'execution_timestamp': datetime.now().isoformat(),
                 'execution_time_seconds': timer.elapsed,
-                'method': method,
+                'method': actual_method,
                 # FIX: Remove config_path or use config variable
                 'config_used': 'config/config.yaml',  # Just use a string
                 'results_directory': str(results_dir)

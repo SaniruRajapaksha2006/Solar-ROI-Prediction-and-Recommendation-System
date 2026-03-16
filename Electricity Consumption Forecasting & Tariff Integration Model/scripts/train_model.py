@@ -17,12 +17,12 @@ def find_project_root():
 project_root = find_project_root()
 sys.path.insert(0, str(project_root))
 
-from ..src.data_loader import ElectricityDataLoader
-from ..models.lstm_model import LSTMForecaster
-from ..features.feature_engineer import FeatureEngineer
-from ..validation.time_series_split import TemporalSplitter
-from ..validation.model_validator import ModelValidator
-from ..src.utils import load_config, setup_logging, save_json, create_results_directory
+from data_loader import ElectricityDataLoader
+from models.lstm_model import LSTMForecaster
+from features.feature_engineer import FeatureEngineer
+from validation.time_series_split import TemporalSplitter
+from validation.model_validator import ModelValidator
+from utils import load_config, setup_logging, save_json, create_results_directory
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ def train_lstm_model(config, args=None):
     logger.info(f"Loaded {len(df)} records for {df['ACCOUNT_NO'].nunique()} accounts")
 
     # Create temporal split
-    logger.info("\nCreating train/val/test split...")
+    logger.info("\n🔀 Creating train/val/test split...")
     splitter = TemporalSplitter(config)
     train_df, val_df, test_df = splitter.split(df)
 
@@ -173,4 +173,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
