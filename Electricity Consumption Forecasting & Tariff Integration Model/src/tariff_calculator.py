@@ -32,6 +32,51 @@ class PUCsLTariffCalculator:
 
         return structures
 
+    def calculate_monthly_bill(self, consumption_kwh: float,
+                               tariff_code: str = 'D1') -> Dict:
+        # Calculate monthly electricity bill WITHOUT solar
+
+        # Get tariff structure
+        tariff = self._get_tariff(tariff_code)
+
+        # Step 1: Calculate energy charge by blocks
+        energy_charge, block_details = self._calculate_energy_charge(
+            consumption_kwh, tariff['blocks']
+        )
+
+        # Step 2: Fixed charge
+        fixed_charge = tariff['fixed_charge']
+
+        # Step 3: Fuel adjustment charge
+        fuel_adjustment = energy_charge * tariff['fuel_adjustment']
+
+        # Step 4: Subtotal before VAT
+        subtotal = energy_charge + fixed_charge + fuel_adjustment
+
+        # Step 5: VAT
+        vat = subtotal * tariff['vat_rate']
+
+        # Step 6: Total bill
+        total_bill = subtotal + vat
+
+        # Step 7: Effective rate
+        effective_rate = total_bill / consumption_kwh if consumption_kwh > 0 else 0
+
+        result = {
+            'consumption_kwh': round(consumption_kwh, 2),
+            'tariff_category': tariff_code.upper(),
+            'energy_charge_lkr': round(energy_charge, 2),
+            'fixed_charge_lkr': round(fixed_charge, 2),
+            'fuel_adjustment_lkr': round(fuel_adjustment, 2),
+            'subtotal_lkr': round(subtotal, 2),
+            'vat_lkr': round(vat, 2),
+            'total_bill_lkr': round(total_bill, 2),
+            'effective_rate_lkr_per_kwh': round(effective_rate, 2),
+            'block_details': block_details
+        }
+
+        return result
+
     def _get_tariff(self, tariff_code: str) -> Dict:
         # Get tariff structure with fallback to D1
         tariff = self.tariff_structures.get(tariff_code.upper())
@@ -72,3 +117,124 @@ class PUCsLTariffCalculator:
                 remaining -= consumption_in_block
 
         return total_charge, block_details
+
+    def calculate_annual_bills(self, monthly_consumption: Dict[int, float],
+                               tariff_code: str = 'D1') -> Dict:
+        # Calculate bills for all 12 months
+        monthly_bills = {}
+        annual_summary = {
+            'total_consumption_kwh': 0,
+            'total_energy_charge_lkr': 0,
+            'total_fixed_charge_lkr': 0,
+            'total_fuel_adjustment_lkr': 0,
+            'total_vat_lkr': 0,
+            'total_bill_lkr': 0
+        }
+
+        for month in range(1, 13):
+            consumption = monthly_consumption.get(month, 0)
+            bill = self.calculate_monthly_bill(consumption, tariff_code)
+            monthly_bills[month] = bill
+
+            # Update annual summary
+            annual_summary['total_consumption_kwh'] += consumption
+            annual_summary['total_energy_charge_lkr'] += bill['energy_charge_lkr']
+            annual_summary['total_fixed_charge_lkr'] += bill['fixed_charge_lkr']
+            annual_summary['total_fuel_adjustment_lkr'] += bill['fuel_adjustment_lkr']
+            annual_summary['total_vat_lkr'] += bill['vat_lkr']
+            annual_summary['total_bill_lkr'] += bill['total_bill_lkr']
+
+        # Calculate averages
+        annual_summary['monthly_average_consumption_kwh'] = \
+            annual_summary['total_consumption_kwh'] / 12
+        annual_summary['monthly_average_bill_lkr'] = \
+            annual_summary['total_bill_lkr'] / 12
+
+        # Calculate effective annual rate
+        if annual_summary['total_consumption_kwh'] > 0:
+            annual_summary['effective_rate_lkr_per_kwh'] = \
+                annual_summary['total_bill_lkr'] / annual_summary['total_consumption_kwh']
+        else:
+            annual_summary['effective_rate_lkr_per_kwh'] = 0
+
+        return {
+            'monthly_bills': monthly_bills,
+            'annual_summary': annual_summary
+        }
+
+    def get_highest_block_rate(self, tariff_code: str = 'D1') -> float:
+        # Get highest block rate for export credit calculation
+        tariff = self._get_tariff(tariff_code)
+        blocks = tariff.get('blocks', [])
+        return max(block['rate'] for block in blocks) if blocks else 0
+
+    def get_fixed_charge(self, tariff_code: str = 'D1') -> float:
+        # Get fixed charge for tariff
+        tariff = self._get_tariff(tariff_code)
+        return tariff.get('fixed_charge', 180)
+
+    def format_monthly_bill_for_display(self, bill: Dict) -> str:
+        # Format monthly bill for display
+        lines = []
+        lines.append("\n MONTHLY ELECTRICITY BILL")
+        lines.append("=" * 60)
+        lines.append(f"Consumption: {bill['consumption_kwh']:.1f} kWh")
+        lines.append(f"Tariff: {bill['tariff_category']}")
+        lines.append("-" * 60)
+
+        if bill['block_details']:
+            lines.append("Block-wise Calculation:")
+            for block in bill['block_details']:
+                lines.append(f"  {block['block_range']:10} kWh: "
+                           f"{block['kwh_in_block']:6.1f} kWh × Rs.{block['rate_lkr_per_kwh']:6.2f} "
+                           f"= Rs.{block['charge_lkr']:8.2f}")
+            lines.append("-" * 60)
+
+        lines.append(f"Energy Charge:        Rs.{bill['energy_charge_lkr']:12,.2f}")
+        lines.append(f"Fixed Charge:         Rs.{bill['fixed_charge_lkr']:12,.2f}")
+        lines.append(f"Fuel Adjustment:      Rs.{bill['fuel_adjustment_lkr']:12,.2f}")
+        lines.append(f"Subtotal:             Rs.{bill['subtotal_lkr']:12,.2f}")
+        lines.append(f"VAT:                  Rs.{bill['vat_lkr']:12,.2f}")
+        lines.append("=" * 60)
+        lines.append(f"TOTAL MONTHLY BILL:   Rs.{bill['total_bill_lkr']:12,.2f}")
+        lines.append(f"Effective Rate:       Rs.{bill['effective_rate_lkr_per_kwh']:7.2f}/kWh")
+
+        return "\n".join(lines)
+
+    def format_annual_bills_for_display(self, annual_bills: Dict) -> str:
+        # Format annual bills for display
+        monthly_bills = annual_bills['monthly_bills']
+        annual_summary = annual_bills['annual_summary']
+
+        lines = []
+        lines.append("\n ANNUAL ELECTRICITY BILLS SUMMARY")
+        lines.append("=" * 70)
+        lines.append(f"{'Month':8} {'Consumption':>12} {'Energy':>12} {'Fixed':>10} {'VAT':>10} {'Total':>12}")
+        lines.append(f"{'':8} {'(kWh)':>12} {'Charge':>12} {'Charge':>10} {'':>10} {'Bill':>12}")
+        lines.append("-" * 70)
+
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+        for month in range(1, 13):
+            bill = monthly_bills[month]
+            lines.append(
+                f"{month_names[month-1]:8} {bill['consumption_kwh']:8.1f} kWh "
+                f"Rs.{bill['energy_charge_lkr']:10,.0f} "
+                f"Rs.{bill['fixed_charge_lkr']:8,.0f} "
+                f"Rs.{bill['vat_lkr']:8,.0f} "
+                f"Rs.{bill['total_bill_lkr']:10,.0f}"
+            )
+
+        lines.append("=" * 70)
+        lines.append("ANNUAL TOTALS:")
+        lines.append(f"  Total Consumption: {annual_summary['total_consumption_kwh']:,.0f} kWh")
+        lines.append(f"  Total Energy Charge: Rs.{annual_summary['total_energy_charge_lkr']:,.0f}")
+        lines.append(f"  Total Fixed Charge: Rs.{annual_summary['total_fixed_charge_lkr']:,.0f}")
+        lines.append(f"  Total VAT: Rs.{annual_summary['total_vat_lkr']:,.0f}")
+        lines.append("=" * 70)
+        lines.append(f"  ANNUAL ELECTRICITY BILL: Rs.{annual_summary['total_bill_lkr']:,.0f}")
+        lines.append(f"  Monthly Average: Rs.{annual_summary['monthly_average_bill_lkr']:,.0f}")
+        lines.append(f"  Effective Rate: Rs.{annual_summary['effective_rate_lkr_per_kwh']:.2f}/kWh")
+
+        return "\n".join(lines)
