@@ -119,3 +119,11 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+DEFAULT_CAPACITY_KW  = 100
+SAFETY_MARGIN        = 0.80
+CURTAILMENT_THRESH   = 0.75
+CAPACITY_TIERS       = [1.5, 3.0, 5.0, 7.5, 10.0, 15.0, 20.0]
+FEATURE_COLS         = ['current_load_kW', 'total_solar_capacity', 'utilization_rate',
+                        'solar_penetration', 'demand_volatility', 'available_headroom',
+                        'export_ratio']
