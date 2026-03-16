@@ -9,3 +9,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from geopy.distance import geodesic
+
+st.set_page_config(
+    page_title="SolarGrid Intelligence",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
