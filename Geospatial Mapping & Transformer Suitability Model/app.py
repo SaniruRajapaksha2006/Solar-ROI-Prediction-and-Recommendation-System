@@ -163,3 +163,36 @@ def load_data(csv_path: str) -> pd.DataFrame:
     agg['export_ratio'] = (agg['avg_export'] / (agg['avg_import'] + 1)).fillna(0)
 
     return agg.fillna(0)
+
+
+@st.cache_resource(show_spinner="Training models…")
+def train_models(csv_path: str):
+    df = load_data(csv_path)
+    X_raw = df[FEATURE_COLS].fillna(0)
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_raw)
+
+    y = (df['utilization_rate'] < df['utilization_rate'].median()).astype(int)
+
+    rf = RandomForestClassifier(n_estimators=150, max_depth=8, random_state=42)
+    rf.fit(X_scaled, y)
+
+    km = KMeans(n_clusters=3, random_state=42, n_init='auto')
+    raw_labels = km.fit_predict(X_scaled)
+    centroid_util = km.cluster_centers_[:, 2]
+    rank_order = np.argsort(centroid_util)
+    label_map = {orig: new for new, orig in enumerate(rank_order)}
+    labels = np.vectorize(label_map.get)(raw_labels)
+
+    lr = LinearRegression()
+    lr.fit(np.arange(len(df)).reshape(-1, 1), df['current_load_kW'].values)
+
+    return scaler, rf, km, lr, label_map
+
+
+CLUSTER_NAMES = {
+    0: 'Underutilised — Low Risk',
+    1: 'Balanced Load — Medium Risk',
+    2: 'High Utilisation — High Risk',
+}
