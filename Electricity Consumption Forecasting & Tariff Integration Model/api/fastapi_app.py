@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import uvicorn
@@ -171,25 +171,29 @@ class UserInput(BaseModel):
     has_solar: int = Field(0, ge=0, le=1, description="Has solar installed (0/1)")
     household_size: int = Field(4, ge=1, le=20, description="Number of people")
 
-    @validator('latitude')
+    @field_validator('latitude')
+    @classmethod
     def validate_latitude(cls, v):
         if not (5.9 <= v <= 9.8):
             raise ValueError('Latitude must be within Sri Lanka (5.9 to 9.8)')
         return v
 
-    @validator('longitude')
+    @field_validator('longitude')
+    @classmethod
     def validate_longitude(cls, v):
         if not (79.6 <= v <= 81.9):
             raise ValueError('Longitude must be within Sri Lanka (79.6 to 81.9)')
         return v
 
-    @validator('tariff')
+    @field_validator('tariff')
+    @classmethod
     def validate_tariff(cls, v):
         if v not in ['D1', 'GP1', 'GP2']:
             raise ValueError('Tariff must be D1, GP1, or GP2')
         return v
 
-    @validator('phase')
+    @field_validator('phase')
+    @classmethod
     def validate_phase(cls, v):
         if v not in ['SP', 'TP']:
             raise ValueError('Phase must be SP or TP')
