@@ -76,6 +76,100 @@ class ModelValidator:
 
         return metrics
 
+    def cross_validate(self, df: pd.DataFrame, model: Optional[LSTMForecaster] = None,
+                       n_folds: int = 5) -> Dict:
+        # Get time-ordered indices
+        df = df.sort_values(['YEAR', 'MONTH']).reset_index(drop=True)
+
+        # Create time index
+        df['time_idx'] = df['YEAR'] * 12 + df['MONTH']
+        unique_times = df['time_idx'].unique()
+
+        fold_size = len(unique_times) // (n_folds + 1)
+
+        cv_results = {
+            'fold_metrics': [],
+            'average_metrics': {},
+            'std_metrics': {}
+        }
+
+        for fold in range(n_folds):
+            # Define train/test periods
+            train_end_idx = (fold + 1) * fold_size
+            test_start_idx = train_end_idx
+            test_end_idx = min((fold + 2) * fold_size, len(unique_times))
+
+            train_times = unique_times[:train_end_idx]
+            test_times = unique_times[test_start_idx:test_end_idx]
+
+            # Split data
+            train_df = df[df['time_idx'].isin(train_times)]
+            test_df = df[df['time_idx'].isin(test_times)]
+
+            logger.info(f"Fold {fold + 1}: Train {train_times[0]}-{train_times[-1]}, "
+                        f"Test {test_times[0]}-{test_times[-1]}")
+
+            # Train model on this fold
+            fold_model = self._train_fold_model(train_df)
+
+            # Make predictions on test set
+            fold_metrics = self._evaluate_fold(fold_model, test_df)
+
+            cv_results['fold_metrics'].append({
+                'fold': fold + 1,
+                'train_range': (int(train_times[0]), int(train_times[-1])),
+                'test_range': (int(test_times[0]), int(test_times[-1])),
+                'metrics': fold_metrics
+            })
+
+        # Calculate average metrics
+        metrics_list = [f['metrics'] for f in cv_results['fold_metrics']]
+        if metrics_list:
+            for metric in metrics_list[0].keys():
+                values = [m[metric] for m in metrics_list if metric in m]
+                if values:
+                    cv_results['average_metrics'][metric] = float(np.mean(values))
+                    cv_results['std_metrics'][metric] = float(np.std(values))
+
+        return cv_results
+
+    def _train_fold_model(self, train_df: pd.DataFrame) -> LSTMForecaster:
+        # Initialize feature engineer
+        feature_engineer = FeatureEngineer(self.config)
+
+        # Prepare training data
+        X_train, y_train = feature_engineer.prepare_for_training(train_df)
+
+        # Initialize and train model
+        model = LSTMForecaster(self.config)
+
+        # Build model with correct input shape
+        input_shape = (X_train.shape[1], X_train.shape[2])
+        model.build_model(input_shape)
+
+        # Train the model
+        # Using 30 epochs for CV to keep it fast
+        model.train(X_train, y_train, None, None, epochs=30)
+
+        return model
+
+    def _evaluate_fold(self, model: LSTMForecaster, test_df: pd.DataFrame) -> Dict:
+        # Initialize feature engineer
+        feature_engineer = FeatureEngineer(self.config)
+
+        # Prepare test data
+        X_test, y_test = feature_engineer.prepare_for_training(test_df)
+
+        # Make predictions
+        y_pred = model.predict(X_test)
+
+        # Flatten for metrics
+        y_test_flat = y_test.flatten()
+        y_pred_flat = y_pred.flatten()
+
+        # Calculate metrics
+        return self.evaluate_forecast(y_test_flat, y_pred_flat, y_test_flat)
+
     def compare_with_baselines(self, df: pd.DataFrame) -> Dict:
         baselines = {
             'persistence': self._persistence_forecast,
@@ -164,6 +258,43 @@ class ModelValidator:
             'description': 'Historical monthly average'
         }
 
+    def diebold_mariano_test(self, df: pd.DataFrame,
+                             model1_pred: np.ndarray,
+                             model2_pred: np.ndarray,
+                             y_true: np.ndarray) -> Dict:
+        # Diebold-Mariano test for forecast comparison
+        # Calculate loss differential
+        loss1 = np.abs(y_true - model1_pred)
+        loss2 = np.abs(y_true - model2_pred)
+        d = loss1 - loss2
+
+        # Calculate test statistic
+        n = len(d)
+        d_bar = np.mean(d)
+
+        # Estimate variance (using Newey-West for autocorrelation)
+        gamma = []
+        for k in range(min(4, n - 1)):
+            cov = np.cov(d[:-k - 1], d[k + 1:])[0, 1] if k + 1 < n else 0
+            gamma.append(cov)
+
+        var_d = gamma[0] + 2 * sum(gamma[1:]) if gamma else 0
+
+        if var_d <= 0:
+            return {'dm_statistic': 0, 'p_value': 1.0, 'result': 'Cannot compute'}
+
+        dm_stat = d_bar / np.sqrt(var_d / n)
+
+        # Two-sided p-value
+        p_value = 2 * (1 - stats.norm.cdf(abs(dm_stat)))
+
+        return {
+            'dm_statistic': float(dm_stat),
+            'p_value': float(p_value),
+            'significant': p_value < 0.05,
+            'better_model': 'model1' if d_bar < 0 else 'model2'
+        }
+
     def analyze_residuals(self, y_true: np.ndarray,
                           y_pred: np.ndarray) -> Dict:
         residuals = y_true - y_pred
@@ -196,6 +327,69 @@ class ModelValidator:
             analysis['constant_variance'] = abs(corr) < 0.3
 
         return analysis
+
+    def validate_on_household_types(self, df: pd.DataFrame,
+                                    predictions: Dict) -> Dict:
+        # Define household types based on consumption
+        df['consumption_level'] = pd.cut(
+            df['NET_CONSUMPTION_kWh'],
+            bins=[0, 90, 150, 300, 2000],
+            labels=['Low', 'Medium-Low', 'Medium-High', 'High']
+        )
+
+        results = {}
+
+        for level in ['Low', 'Medium-Low', 'Medium-High', 'High']:
+            level_accounts = df[df['consumption_level'] == level]['ACCOUNT_NO'].unique()
+
+            level_errors = []
+            for account in level_accounts:
+                if account in predictions:
+                    level_errors.extend(predictions[account].get('errors', []))
+
+            if level_errors:
+                results[level] = {
+                    'n_accounts': len(level_accounts),
+                    'mae': float(np.mean(level_errors)),
+                    'rmse': float(np.sqrt(np.mean(np.square(level_errors))))
+                }
+            else:
+                results[level] = {
+                    'n_accounts': len(level_accounts),
+                    'mae': None,
+                    'rmse': None
+                }
+
+        return results
+
+    def validate_by_season(self, df: pd.DataFrame,
+                           predictions: Dict) -> Dict:
+        # Define seasons
+        seasons = {
+            'NE_Monsoon': [12, 1, 2],
+            'Dry_Season': [3, 4],
+            'SW_Monsoon': [5, 6, 7, 8, 9],
+            'Inter_Monsoon': [10, 11]
+        }
+
+        results = {}
+
+        for season_name, months in seasons.items():
+            season_errors = []
+
+            for account in predictions:
+                for month in months:
+                    if month in predictions[account]:
+                        season_errors.append(predictions[account][month].get('error', 0))
+
+            if season_errors:
+                results[season_name] = {
+                    'n_samples': len(season_errors),
+                    'mae': float(np.mean(season_errors)),
+                    'rmse': float(np.sqrt(np.mean(np.square(season_errors))))
+                }
+
+        return results
 
     def save_validation_report(self, results: Dict, filepath: str):
         report = {
