@@ -565,4 +565,12 @@ def render_detail(tf):
             st.divider()
             run_btn = st.button("▶  Run Assessment", use_container_width=True, type="primary")
 
+            try:
+                transformer_data = load_data(csv_path)
+                scaler, rf, km, lr, lmap = train_models(csv_path)
+            except Exception as e:
+                st.error(f"Failed to load data: {e}")
+                st.info("Make sure your CSV path is correct and the file exists.")
+                return
+
 
