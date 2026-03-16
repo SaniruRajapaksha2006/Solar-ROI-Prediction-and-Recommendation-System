@@ -1,16 +1,21 @@
 """
+src/training/tuner.py
 Hyperparameter tuning using GridSearchCV with GroupKFold.
+
+GroupKFold is mandatory here — the same household must not appear in
+both the CV train and validation fold, otherwise CV MAE is optimistic
+and the overfitting check in evaluator.py becomes meaningless.
 """
 
 import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
-
-from utils.utils_config import get_training_config
 from sklearn.linear_model import Lasso, Ridge
 from sklearn.model_selection import GridSearchCV, GroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
+
+from utils.utils_config import get_training_config
 
 
 # Each entry: (estimator_step_name, estimator, param_grid)
@@ -38,17 +43,19 @@ _TUNING_CONFIGS = [
         "rf",
         RandomForestRegressor(random_state=42),
         {
-            "rf__n_estimators":      [50, 100],
-            "rf__max_depth":         [6, 8, 10],
-            "rf__min_samples_split": [5, 10],
-            "rf__min_samples_leaf":  [2, 4],
+            # n_estimators: 200 added — captures more trees without overfitting
+            "rf__n_estimators":      [50, 100, 200],
+            # max_depth: 3 added — shallow trees generalise better on noisy data;
+            # None allows full growth for comparison
+            "rf__max_depth":         [3, 5, 10, None],
+            "rf__min_samples_split": [2, 5, 10],
         },
     ),
     (
         "gb",
         GradientBoostingRegressor(random_state=42),
         {
-            "gb__n_estimators":      [50, 100],
+            "gb__n_estimators":      [50, 100, 200],
             "gb__max_depth":         [3, 4, 5],
             "gb__learning_rate":     [0.05, 0.1, 0.2],
             "gb__min_samples_split": [5, 10],
@@ -70,11 +77,11 @@ class ModelTuner:
     def __init__(self, n_folds: int = None):
         """
         Args:
-            n_folds: Number of GroupKFold folds (default: from config.yaml training.n_folds).
-                     Needs enough households to fill each fold.
+            n_folds: GroupKFold folds. Default: from config training.n_folds (5).
         """
-        self.n_folds = n_folds if n_folds is not None else get_training_config()["n_folds"]
-        self.cv_mae_scores: dict[str, float] = {}   # exposed to evaluator.py
+        self.n_folds = n_folds if n_folds is not None \
+                       else get_training_config()["n_folds"]
+        self.cv_mae_scores: dict[str, float] = {}
 
     def tune_all(self, X_train: pd.DataFrame, y_train: pd.Series,
                  groups_train: pd.Series) -> dict[str, Pipeline]:
@@ -88,7 +95,7 @@ class ModelTuner:
                             (returned by HouseholdSplitter.split)
 
         Returns:
-            {model_name: best_fitted_pipeline}  - ready for predict() calls
+            {model_name: best_fitted_pipeline}  — ready for predict() calls
         """
         print("\n" + "=" * 60)
         print(f"HYPERPARAMETER TUNING  (GroupKFold, {self.n_folds} folds)")
