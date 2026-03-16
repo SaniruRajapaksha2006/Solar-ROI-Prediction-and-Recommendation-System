@@ -238,3 +238,181 @@ class PUCsLTariffCalculator:
         lines.append(f"  Effective Rate: Rs.{annual_summary['effective_rate_lkr_per_kwh']:.2f}/kWh")
 
         return "\n".join(lines)
+
+class NetMeteringCalculator:
+    """
+    Net metering calculator for solar customers
+    Handles credit carryover and annual settlements
+    """
+
+    def __init__(self, base_calculator: PUCsLTariffCalculator):
+        self.base = base_calculator
+        self.credit_balance = 0.0
+        self.credit_history = []  # Track when credits were earned
+        self.monthly_records = []
+
+    def calculate_monthly_bill(self, consumption_kwh: float, generation_kwh: float,
+                              tariff_code: str = 'D1', month: int = None,
+                              year: int = None) -> Dict:
+
+        net_consumption = consumption_kwh - generation_kwh
+
+        # Get export rate (highest block rate)
+        export_rate = self.base.get_highest_block_rate(tariff_code)
+        fixed_charge = self.base.get_fixed_charge(tariff_code)
+
+        if net_consumption >= 0:
+            # Using grid power
+            bill = self.base.calculate_monthly_bill(net_consumption, tariff_code)
+
+            # Apply credits if available
+            credits_used = 0
+            if self.credit_balance > 0:
+                original_bill = bill['total_bill_lkr']
+                bill['total_bill_lkr'] = max(
+                    fixed_charge,
+                    bill['total_bill_lkr'] - self.credit_balance
+                )
+                credits_used = original_bill - bill['total_bill_lkr']
+                self.credit_balance = max(0, self.credit_balance - credits_used)
+
+            result = {
+                **bill,
+                'net_consumption_kwh': net_consumption,
+                'generation_kwh': generation_kwh,
+                'credits_used': credits_used,
+                'credit_balance': self.credit_balance,
+                'note': 'Net consumption billed'
+            }
+
+        else:
+            # Exporting to grid
+            excess_kwh = -net_consumption
+            credit_earned = excess_kwh * export_rate
+            self.credit_balance += credit_earned
+
+            # Track credit history
+            if month and year:
+                self.credit_history.append({
+                    'month': month,
+                    'year': year,
+                    'excess_kwh': excess_kwh,
+                    'credit_earned': credit_earned,
+                    'balance_after': self.credit_balance
+                })
+
+            # Minimum bill (fixed charge only)
+            result = {
+                'consumption_kwh': round(consumption_kwh, 2),
+                'generation_kwh': round(generation_kwh, 2),
+                'net_consumption_kwh': round(net_consumption, 2),
+                'excess_kwh': round(excess_kwh, 2),
+                'credit_earned': round(credit_earned, 2),
+                'credit_balance': round(self.credit_balance, 2),
+                'total_bill_lkr': fixed_charge,
+                'tariff_category': tariff_code.upper(),
+                'fixed_charge_lkr': fixed_charge,
+                'effective_rate_lkr_per_kwh': fixed_charge / consumption_kwh if consumption_kwh > 0 else 0,
+                'note': 'Excess generation - credits earned'
+            }
+
+        # Store monthly record
+        self.monthly_records.append({
+            'month': month,
+            'year': year,
+            'consumption': consumption_kwh,
+            'generation': generation_kwh,
+            'net': net_consumption,
+            'credit_balance': self.credit_balance,
+            'bill': result['total_bill_lkr']
+        })
+
+        return result
+
+    def calculate_annual_bills(self, monthly_consumption: Dict[int, float],
+                              monthly_generation: Dict[int, float],
+                              tariff_code: str = 'D1',
+                              year: int = None) -> Dict:
+
+        # Reset for new year
+        self.credit_balance = 0
+        self.credit_history = []
+        self.monthly_records = []
+
+        monthly_bills = {}
+        annual_summary = {
+            'total_consumption_kwh': 0,
+            'total_generation_kwh': 0,
+            'total_net_kwh': 0,
+            'total_bill_lkr': 0,
+            'total_fixed_charge_lkr': 0,
+            'total_credits_earned': 0,
+            'total_credits_used': 0,
+            'final_credit_balance': 0
+        }
+
+        for month in range(1, 13):
+            consumption = monthly_consumption.get(month, 0)
+            generation = monthly_generation.get(month, 0)
+
+            bill = self.calculate_monthly_bill(
+                consumption, generation, tariff_code,
+                month=month, year=year
+            )
+
+            monthly_bills[month] = bill
+
+            # Update summary
+            annual_summary['total_consumption_kwh'] += consumption
+            annual_summary['total_generation_kwh'] += generation
+            annual_summary['total_net_kwh'] += (consumption - generation)
+            annual_summary['total_bill_lkr'] += bill['total_bill_lkr']
+            annual_summary['total_fixed_charge_lkr'] += bill.get('fixed_charge_lkr', 0)
+            annual_summary['total_credits_earned'] += bill.get('credit_earned', 0)
+            annual_summary['total_credits_used'] += bill.get('credits_used', 0)
+
+        annual_summary['final_credit_balance'] = self.credit_balance
+
+        # Perform annual settlement (credits expire)
+        settlement = self.annual_settlement()
+        annual_summary['settlement'] = settlement
+
+        return {
+            'monthly_bills': monthly_bills,
+            'annual_summary': annual_summary,
+            'credit_history': self.credit_history
+        }
+
+    def annual_settlement(self) -> Dict:
+
+        # Handle annual settlement - credits expire after 12 months
+        expired_credits = self.credit_balance
+        self.credit_balance = 0
+
+        logger.info(f"Annual settlement: Rs. {expired_credits:.2f} in credits expired")
+
+        return {
+            'expired_credits': expired_credits,
+            'date': datetime.now().isoformat(),
+            'note': 'Credits expired after 12 months per PUCSL rules'
+        }
+
+    def get_credit_summary(self) -> Dict:
+        # Get summary of credit activity
+        if not self.credit_history:
+            return {'total_credits_earned': 0, 'current_balance': 0}
+
+        total_earned = sum(c['credit_earned'] for c in self.credit_history)
+        return {
+            'total_credits_earned': total_earned,
+            'current_balance': self.credit_balance,
+            'months_with_excess': len(self.credit_history),
+            'average_monthly_credit': total_earned / len(self.credit_history) if self.credit_history else 0
+        }
+
+    def reset(self):
+        # Reset calculator for new simulation
+        self.credit_balance = 0
+        self.credit_history = []
+        self.monthly_records = []
+        logger.info("Net metering calculator reset")
