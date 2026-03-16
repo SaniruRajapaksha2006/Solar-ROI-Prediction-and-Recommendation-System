@@ -1,1 +1,1 @@
-"""Tests package for Component 3"""g
+"""Tests package for Component 3"""

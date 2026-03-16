@@ -18,8 +18,8 @@ def find_project_root():
 project_root = find_project_root()
 sys.path.insert(0, str(project_root))
 
-from features.cyclical_encoder import CyclicalFeatureEncoder
-from features.weather_integrator import WeatherIntegrator
+from .cyclical_encoder import CyclicalFeatureEncoder
+from .weather_integrator import WeatherIntegrator
 
 logger = logging.getLogger(__name__)
 

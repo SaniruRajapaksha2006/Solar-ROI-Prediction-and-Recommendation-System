@@ -23,16 +23,16 @@ try:
         setup_logging, load_config, save_json, create_results_directory,
         validate_user_input, log_execution_time, Timer
     )
-    from data_loader import ElectricityDataLoader
+    from src.data_loader import ElectricityDataLoader
     from data_quality import DataQualityMonitor
     from features.feature_engineer import FeatureEngineer
     from features.cyclical_encoder import CyclicalFeatureEncoder
     from features.weather_integrator import WeatherIntegrator
     from models.lstm_model import LSTMForecaster
-    from similarity_matcher import SimilarityMatcher
-    from pattern_extractor import ConsumptionPatternExtractor
-    from forecaster import EnsembleForecaster
-    from tariff_calculator import PUCsLTariffCalculator, NetMeteringCalculator
+    from src.similarity_matcher import SimilarityMatcher
+    from src.pattern_extractor import ConsumptionPatternExtractor
+    from src.forecaster import EnsembleForecaster
+    from src.tariff_calculator import PUCsLTariffCalculator, NetMeteringCalculator
     from validation.model_validator import ModelValidator
     from validation.time_series_split import TemporalSplitter
     from monitoring.drift_detector import ConceptDriftDetector

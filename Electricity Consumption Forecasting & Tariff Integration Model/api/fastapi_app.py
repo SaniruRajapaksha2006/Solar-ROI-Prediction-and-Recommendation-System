@@ -20,15 +20,15 @@ def find_project_root():
 project_root = find_project_root()
 sys.path.insert(0, str(project_root))
 
-from data_loader import ElectricityDataLoader
-from similarity_matcher import SimilarityMatcher
-from pattern_extractor import ConsumptionPatternExtractor
-from models.lstm_model import LSTMForecaster
-from forecaster import EnsembleForecaster
-from tariff_calculator import PUCsLTariffCalculator, NetMeteringCalculator
-from features.feature_engineer import FeatureEngineer
-from features.weather_integrator import WeatherIntegrator
-from utils import load_config, setup_logging, validate_user_input
+from ..src.data_loader import ElectricityDataLoader
+from ..src.similarity_matcher import SimilarityMatcher
+from ..src.pattern_extractor import ConsumptionPatternExtractor
+from ..models.lstm_model import LSTMForecaster
+from ..src.forecaster import EnsembleForecaster
+from ..src.tariff_calculator import PUCsLTariffCalculator, NetMeteringCalculator
+from ..features.feature_engineer import FeatureEngineer
+from ..features.weather_integrator import WeatherIntegrator
+from ..src.utils import load_config, setup_logging, validate_user_input
 
 # Setup logging
 setup_logging()
@@ -441,7 +441,7 @@ def train_model_background():
     # Background task for model training
     logger.info("Starting background model training")
     try:
-        from scripts.train_model import train_lstm_model
+        from ..scripts.train_model import train_lstm_model
         train_lstm_model(config)
         logger.info("Background training completed")
     except Exception as e:
