@@ -1,7 +1,7 @@
 """
-streamlit_app.py  —  Kinetic · Solar Transformer Suitability
-Clean layout: Streamlit-native columns/containers for structure,
-HTML only for self-contained display blocks.
+streamlit_app.py — Kinetic · Solar Transformer Suitability
+Fixed: GPS session state ordering, number_input value seeding,
+       query-param sync, and consistent backend wiring.
 Run: streamlit run streamlit_app.py
 """
 
@@ -25,7 +25,27 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GLOBAL STYLES  (pure CSS, no structural HTML)
+# SESSION STATE — initialise FIRST, before anything else runs
+# GPS query params override defaults if present
+# ─────────────────────────────────────────────────────────────────────────────
+def init_session():
+    """Initialise session state defaults. Called once at startup."""
+    if "page"       not in st.session_state: st.session_state.page       = "home"
+    if "results"    not in st.session_state: st.session_state.results    = None
+    if "selected"   not in st.session_state: st.session_state.selected   = None
+    if "error"      not in st.session_state: st.session_state.error      = None
+    if "solar_kw"   not in st.session_state: st.session_state.solar_kw   = 5.0
+    if "radius_m"   not in st.session_state: st.session_state.radius_m   = 5000
+    if "lat"        not in st.session_state: st.session_state.lat        = 6.849000
+    if "lon"        not in st.session_state: st.session_state.lon        = 79.924700
+    if "gps_active" not in st.session_state: st.session_state.gps_active = False
+
+
+init_session()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GLOBAL STYLES
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -74,7 +94,7 @@ input[type=number]{-moz-appearance:textfield;}
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 
-/* TOPBAR */
+/* ── TOPBAR ── */
 .k-topbar{
   position:sticky;top:0;z-index:200;
   background:rgba(247,245,240,.94);
@@ -99,58 +119,35 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
   0%,100%{box-shadow:0 0 0 0 rgba(244,96,26,.5),var(--sh-or);}
   50%{box-shadow:0 0 0 6px rgba(244,96,26,0),var(--sh-or);}
 }
-.k-tag{
-  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--muted);border:1px solid var(--border);background:var(--surface2);
-  padding:4px 10px;border-radius:99px;font-family:var(--mono);
-}
+.k-tag{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);border:1px solid var(--border);background:var(--surface2);padding:4px 10px;border-radius:99px;font-family:var(--mono);}
 .k-live{margin-left:auto;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;color:var(--muted);}
 .k-live-dot{width:7px;height:7px;border-radius:50%;background:var(--dkgreen);animation:pulse-live 2.4s ease infinite;}
-@keyframes pulse-live{
-  0%{box-shadow:0 0 0 0 rgba(24,160,88,.6);}
-  70%{box-shadow:0 0 0 8px rgba(24,160,88,0);}
-  100%{box-shadow:0 0 0 0 rgba(24,160,88,0);}
-}
+@keyframes pulse-live{0%{box-shadow:0 0 0 0 rgba(24,160,88,.6);}70%{box-shadow:0 0 0 8px rgba(24,160,88,0);}100%{box-shadow:0 0 0 0 rgba(24,160,88,0);}}
 
-/* HERO */
-.k-eyebrow{
-  font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;
-  color:var(--orange);margin-bottom:20px;
-  display:flex;align-items:center;gap:14px;
-}
+/* ── HERO ── */
+.k-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--orange);margin-bottom:20px;display:flex;align-items:center;gap:14px;}
 .k-eyebrow::before{content:'';width:28px;height:1.5px;background:linear-gradient(90deg,var(--orange),var(--amber));border-radius:2px;}
-.k-title{
-  font-family:var(--display);
-  font-size:clamp(36px,3.8vw,56px);font-weight:700;
-  line-height:1.0;letter-spacing:-.03em;margin-bottom:24px;
-}
+.k-title{font-family:var(--display);font-size:clamp(36px,3.8vw,56px);font-weight:700;line-height:1.0;letter-spacing:-.03em;margin-bottom:24px;}
 .k-title .lt{font-weight:400;color:var(--text2);}
 .k-title .ac{color:var(--orange);}
 .k-desc{color:var(--muted);font-size:14.5px;line-height:1.75;font-weight:300;max-width:460px;}
 .k-pills{display:flex;gap:8px;margin-top:36px;flex-wrap:wrap;}
-.k-pill{
-  display:flex;align-items:center;gap:6px;
-  padding:6px 12px;border-radius:99px;
-  font-size:10.5px;font-family:var(--mono);border:1px solid;
-}
+.k-pill{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;font-size:10.5px;font-family:var(--mono);border:1px solid;}
 .k-pill.or{background:rgba(244,96,26,.08);border-color:rgba(244,96,26,.28);color:var(--orange);}
 .k-pill.am{background:rgba(217,119,6,.08);border-color:rgba(217,119,6,.28);color:var(--amber);}
 .k-pill.gr{background:rgba(24,160,88,.08);border-color:rgba(24,160,88,.28);color:var(--dkgreen);}
 .k-pill.rd{background:rgba(220,38,38,.08);border-color:rgba(220,38,38,.28);color:var(--red);}
 
-/* FORM */
-.k-sec-label{
-  font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;
-  color:var(--orange);margin-bottom:10px;
-  display:flex;align-items:center;gap:8px;
-}
+/* ── FORM ── */
+.k-sec-label{font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--orange);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
 .k-sec-label::before{content:'';width:12px;height:1px;background:currentColor;opacity:.6;}
-.k-block-or{background:linear-gradient(135deg,rgba(244,96,26,.06),rgba(244,96,26,.02));border:1px solid rgba(244,96,26,.16);border-radius:10px;padding:14px;}
+.k-block-or{background:linear-gradient(135deg,rgba(244,96,26,.06),rgba(244,96,26,.02));border:1px solid rgba(244,96,26,.16);border-radius:10px;padding:14px;margin-bottom:4px;}
 .k-block-am{background:linear-gradient(135deg,rgba(217,119,6,.06),rgba(202,154,5,.02));border:1px solid rgba(217,119,6,.16);border-radius:10px;padding:14px;}
 .k-divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:16px 0;}
-.k-error{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);border-radius:6px;padding:10px 14px;font-size:12px;color:#b91c1c;font-family:var(--mono);}
+.k-error{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);border-radius:6px;padding:10px 14px;font-size:12px;color:#b91c1c;font-family:var(--mono);margin-top:8px;}
+.k-gps-active{background:rgba(24,160,88,.1);border:1px solid rgba(24,160,88,.3);border-radius:6px;padding:8px 12px;font-size:11px;font-family:var(--mono);color:#15803d;margin-bottom:10px;}
 
-/* PRIMARY BUTTON */
+/* ── PRIMARY BUTTON ── */
 .stButton>button[kind="primary"]{
   background:linear-gradient(145deg,var(--orange),#e8530f 50%,var(--amber))!important;
   border:none!important;border-radius:10px!important;
@@ -159,11 +156,8 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
   box-shadow:var(--sh-or)!important;padding:14px 0!important;
 }
 
-/* STAT TILES */
-.k-stat{
-  background:var(--surface);border:1px solid var(--border);border-radius:14px;
-  padding:18px 16px;position:relative;overflow:hidden;box-shadow:var(--sh-md);
-}
+/* ── STAT TILES ── */
+.k-stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 16px;position:relative;overflow:hidden;box-shadow:var(--sh-md);}
 .k-stat::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 14px 14px;}
 .k-stat.c0::after{background:var(--orange);}
 .k-stat.c1::after{background:var(--amber);}
@@ -177,25 +171,16 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 .k-stat-val.bl{color:#3b82f6;}
 .k-stat-lbl{font-size:9px;color:var(--muted);margin-top:6px;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;}
 
-/* MAP */
-.k-map-header{
-  background:var(--surface2);border:1px solid var(--border);
-  border-radius:14px 14px 0 0;padding:12px 18px;
-  display:flex;align-items:center;gap:10px;
-}
+/* ── MAP ── */
+.k-map-header{background:var(--surface2);border:1px solid var(--border);border-radius:14px 14px 0 0;padding:12px 18px;display:flex;align-items:center;gap:10px;}
 .k-map-title{font-size:11px;font-family:var(--mono);letter-spacing:.14em;color:var(--text2);text-transform:uppercase;}
 .k-legend{margin-left:auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
 .k-legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);font-family:var(--mono);}
 .k-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .k-map-wrap{border:1px solid var(--border);border-top:none;border-radius:0 0 14px 14px;overflow:hidden;}
 
-/* TF CARDS */
-.k-tf-card{
-  background:var(--surface);border:1.5px solid var(--border);border-radius:12px;
-  padding:14px 16px;margin-bottom:10px;
-  display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;
-  box-shadow:var(--sh-sm);
-}
+/* ── TF CARDS ── */
+.k-tf-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;box-shadow:var(--sh-sm);}
 .k-tf-card.active{border-color:rgba(244,96,26,.55);background:rgba(244,96,26,.03);box-shadow:var(--sh-or);}
 .k-rank-num{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1;text-align:center;}
 .k-rank-lbl{font-size:8px;font-family:var(--mono);color:var(--muted);letter-spacing:.1em;text-transform:uppercase;text-align:center;margin-top:2px;}
@@ -213,22 +198,14 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 .k-dist-pill{background:var(--surface3);border:1px solid var(--border);border-radius:99px;padding:2px 8px;font-family:var(--mono);font-size:9.5px;color:var(--muted);}
 .k-curtail{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:99px;padding:2px 8px;font-family:var(--mono);font-size:9.5px;color:var(--red);font-weight:700;}
 
-/* SECTION TITLE */
-.k-sec-title{
-  font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
-  color:var(--muted);margin-bottom:12px;
-  display:flex;align-items:center;gap:10px;
-}
+/* ── SECTION TITLE ── */
+.k-sec-title{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:10px;}
 .k-sec-title::after{content:'';flex:1;height:1px;background:var(--border);}
 
-/* DETAIL PANEL INTERNALS */
+/* ── DETAIL PANEL ── */
 .k-detail-code{font-family:var(--display);font-size:20px;font-weight:800;margin-bottom:2px;}
 .k-detail-cluster{font-size:12px;color:var(--muted);margin-bottom:18px;}
-.k-score-big{
-  background:linear-gradient(135deg,rgba(217,119,6,.09),rgba(244,96,26,.05));
-  border:1px solid rgba(217,119,6,.2);border-radius:12px;padding:14px;
-  text-align:center;margin-bottom:12px;
-}
+.k-score-big{background:linear-gradient(135deg,rgba(217,119,6,.09),rgba(244,96,26,.05));border:1px solid rgba(217,119,6,.2);border-radius:12px;padding:14px;text-align:center;margin-bottom:12px;}
 .k-score-big-val{font-family:var(--mono);font-size:36px;font-weight:700;line-height:1.1;}
 .k-score-big-lbl{font-size:9px;color:var(--muted);margin-top:4px;font-family:var(--mono);letter-spacing:.12em;}
 .k-sub-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;}
@@ -258,7 +235,7 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 .k-empty-ic{width:44px;height:44px;border-radius:50%;background:var(--surface3);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;opacity:.5;}
 .k-empty-tx{font-size:13px;color:var(--muted);text-align:center;line-height:1.6;}
 
-/* INPUT OVERRIDES */
+/* ── INPUT OVERRIDES ── */
 div[data-testid="stNumberInput"] input{
   background:var(--surface2)!important;border:1.5px solid var(--border)!important;
   border-radius:7px!important;font-family:var(--mono)!important;
@@ -283,12 +260,14 @@ DEFAULT_CAP_KW = 100
 SAFETY_MARGIN  = 0.80
 CURTAIL_THRESH = 0.75
 CAP_TIERS      = [1.5, 3.0, 5.0, 7.5, 10.0, 15.0, 20.0]
-FEATURE_COLS   = ['current_load_kW','total_solar_capacity','utilization_rate',
-                  'solar_penetration','demand_volatility','available_headroom','export_ratio']
-CLUSTER_NAMES  = {
+FEATURE_COLS   = [
+    'current_load_kW', 'total_solar_capacity', 'utilization_rate',
+    'solar_penetration', 'demand_volatility', 'available_headroom', 'export_ratio'
+]
+CLUSTER_NAMES = {
     0: 'Underutilised — Low Risk',
     1: 'Balanced Load — Medium Risk',
-    2: 'High Utilisation — High Risk'
+    2: 'High Utilisation — High Risk',
 }
 
 
@@ -297,46 +276,46 @@ CLUSTER_NAMES  = {
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner="Loading transformer data…")
 def load_data():
-    df = pd.read_csv(CSV_PATH)
-    unique    = df.drop_duplicates(subset=['TRANSFORMER_CODE','ACCOUNT_NO'])
+    df        = pd.read_csv(CSV_PATH)
+    unique    = df.drop_duplicates(subset=['TRANSFORMER_CODE', 'ACCOUNT_NO'])
     solar_agg = unique.groupby('TRANSFORMER_CODE').agg(
-        total_solar_capacity=('INV_CAPACITY','sum'),
-        solar_connections=('HAS_SOLAR','sum')
+        total_solar_capacity=('INV_CAPACITY', 'sum'),
+        solar_connections=('HAS_SOLAR', 'sum'),
     ).reset_index()
     cons_agg  = df.groupby('TRANSFORMER_CODE').agg(
-        TRANSFORMER_LAT=('TRANSFORMER_LAT','first'),
-        TRANSFORMER_LON=('TRANSFORMER_LON','first'),
-        avg_consumption=('NET_CONSUMPTION_kWh','mean'),
-        consumption_std=('NET_CONSUMPTION_kWh','std'),
-        avg_import=('IMPORT_kWh','mean'),
-        avg_export=('EXPORT_kWh','mean'),
-        num_customers=('ACCOUNT_NO','nunique'),
+        TRANSFORMER_LAT=('TRANSFORMER_LAT', 'first'),
+        TRANSFORMER_LON=('TRANSFORMER_LON', 'first'),
+        avg_consumption=('NET_CONSUMPTION_kWh', 'mean'),
+        consumption_std=('NET_CONSUMPTION_kWh', 'std'),
+        avg_import=('IMPORT_kWh', 'mean'),
+        avg_export=('EXPORT_kWh', 'mean'),
+        num_customers=('ACCOUNT_NO', 'nunique'),
     ).reset_index()
     agg = cons_agg.merge(solar_agg, on='TRANSFORMER_CODE', how='left')
     agg['total_solar_capacity'] = agg['total_solar_capacity'].fillna(0)
     agg['solar_connections']    = agg['solar_connections'].fillna(0)
     cap = DEFAULT_CAP_KW
     agg['ESTIMATED_CAPACITY_kW'] = cap
-    agg['current_load_kW']    = (agg['avg_consumption'] / 720).fillna(0)
-    agg['utilization_rate']   = (agg['current_load_kW'] / cap).clip(0, 1)
-    agg['available_headroom'] = cap - agg['current_load_kW'] - agg['total_solar_capacity']
-    agg['solar_penetration']  = (agg['total_solar_capacity'] / cap).clip(0)
-    agg['demand_volatility']  = (agg['consumption_std'] / 720).fillna(0)
-    agg['export_ratio']       = (agg['avg_export'] / (agg['avg_import'] + 1)).fillna(0)
+    agg['current_load_kW']       = (agg['avg_consumption'] / 720).fillna(0)
+    agg['utilization_rate']      = (agg['current_load_kW'] / cap).clip(0, 1)
+    agg['available_headroom']    = cap - agg['current_load_kW'] - agg['total_solar_capacity']
+    agg['solar_penetration']     = (agg['total_solar_capacity'] / cap).clip(0)
+    agg['demand_volatility']     = (agg['consumption_std'] / 720).fillna(0)
+    agg['export_ratio']          = (agg['avg_export'] / (agg['avg_import'] + 1)).fillna(0)
     return agg.fillna(0)
 
 
 @st.cache_resource(show_spinner="Training ML models…")
 def train_models():
-    df = load_data()
-    X  = df[FEATURE_COLS].fillna(0)
-    sc = StandardScaler()
-    Xs = sc.fit_transform(X)
-    y  = (df['utilization_rate'] < df['utilization_rate'].median()).astype(int)
-    rf = RandomForestClassifier(n_estimators=150, max_depth=8, random_state=42)
+    df    = load_data()
+    X     = df[FEATURE_COLS].fillna(0)
+    sc    = StandardScaler()
+    Xs    = sc.fit_transform(X)
+    y     = (df['utilization_rate'] < df['utilization_rate'].median()).astype(int)
+    rf    = RandomForestClassifier(n_estimators=150, max_depth=8, random_state=42)
     rf.fit(Xs, y)
     km    = KMeans(n_clusters=3, random_state=42, n_init='auto')
-    km.fit_predict(Xs)
+    km.fit(Xs)
     order = np.argsort(km.cluster_centers_[:, 2])
     lmap  = {orig: new for new, orig in enumerate(order)}
     lr    = LinearRegression()
@@ -348,20 +327,22 @@ def train_models():
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 def score_color(s):
-    return '#18a058' if s>=80 else '#d97706' if s>=60 else '#f4601a' if s>=40 else '#dc2626'
+    return '#18a058' if s >= 80 else '#d97706' if s >= 60 else '#f4601a' if s >= 40 else '#dc2626'
 
 def score_label(s):
-    return 'IDEAL' if s>=80 else 'GOOD' if s>=60 else 'FAIR' if s>=40 else 'POOR'
+    return 'IDEAL' if s >= 80 else 'GOOD' if s >= 60 else 'FAIR' if s >= 40 else 'POOR'
 
 def util_color(u):
-    return '#18a058' if u<=70 else '#f4601a' if u<=85 else '#dc2626'
+    return '#18a058' if u <= 70 else '#f4601a' if u <= 85 else '#dc2626'
 
 def get_cap_rec(score, headroom):
-    if score < 60: return None
+    if score < 60:
+        return None
     safe = headroom * 0.80
     rec  = None
     for t in CAP_TIERS:
-        if t <= safe: rec = t
+        if t <= safe:
+            rec = t
     return {'kw': rec, 'safe_max': round(safe, 1)} if rec else None
 
 def get_rec_text(score, avail):
@@ -375,23 +356,27 @@ def ring_html(score):
     r    = 19
     c    = 2 * math.pi * r
     dash = (score / 100) * c
-    return (f'<div class="k-ring">'
-            f'<svg viewBox="0 0 50 50" width="50" height="50">'
-            f'<circle cx="25" cy="25" r="{r}" fill="none" stroke="#e0dbd0" stroke-width="5"/>'
-            f'<circle cx="25" cy="25" r="{r}" fill="none" stroke="{col}" stroke-width="5"'
-            f' stroke-dasharray="{dash:.1f} {c-dash:.1f}" stroke-linecap="round"/>'
-            f'</svg>'
-            f'<div class="k-ring-val" style="color:{col}">{round(score)}</div>'
-            f'</div>')
+    return (
+        f'<div class="k-ring">'
+        f'<svg viewBox="0 0 50 50" width="50" height="50">'
+        f'<circle cx="25" cy="25" r="{r}" fill="none" stroke="#e0dbd0" stroke-width="5"/>'
+        f'<circle cx="25" cy="25" r="{r}" fill="none" stroke="{col}" stroke-width="5"'
+        f' stroke-dasharray="{dash:.1f} {c - dash:.1f}" stroke-linecap="round"/>'
+        f'</svg>'
+        f'<div class="k-ring-val" style="color:{col}">{round(score)}</div>'
+        f'</div>'
+    )
 
 def bar_html(label, value):
     col = util_color(value)
-    return (f'<div class="k-bar-wrap">'
-            f'<div class="k-bar-hdr"><span>{label}</span>'
-            f'<span style="color:{col};font-weight:700">{value:.1f}%</span></div>'
-            f'<div class="k-bar-track">'
-            f'<div class="k-bar-fill" style="width:{min(value,100):.0f}%;background:{col}"></div>'
-            f'</div></div>')
+    return (
+        f'<div class="k-bar-wrap">'
+        f'<div class="k-bar-hdr"><span>{label}</span>'
+        f'<span style="color:{col};font-weight:700">{value:.1f}%</span></div>'
+        f'<div class="k-bar-track">'
+        f'<div class="k-bar-fill" style="width:{min(value, 100):.0f}%;background:{col}"></div>'
+        f'</div></div>'
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -400,13 +385,17 @@ def bar_html(label, value):
 def run_assessment(user_lat, user_lon, solar_kw, radius_m):
     df = load_data().copy()
     sc, rf, km, lr, lmap = train_models()
+
     df['DISTANCE_M'] = df.apply(
         lambda r: geodesic(
             (user_lat, user_lon),
             (r['TRANSFORMER_LAT'], r['TRANSFORMER_LON'])
-        ).meters, axis=1)
+        ).meters,
+        axis=1,
+    )
     nearby = df[df['DISTANCE_M'] <= radius_m].copy().reset_index(drop=True)
-    if nearby.empty: return None
+    if nearby.empty:
+        return None
 
     Xs       = sc.transform(nearby[FEATURE_COLS].fillna(0))
     proba    = rf.predict_proba(Xs)
@@ -415,11 +404,11 @@ def run_assessment(user_lat, user_lon, solar_kw, radius_m):
 
     out = []
     for i, row in nearby.iterrows():
-        cap  = float(row['ESTIMATED_CAPACITY_kW'])
-        load = float(row['current_load_kW'])
-        sol  = float(row['total_solar_capacity'])
-        dist = float(row['DISTANCE_M'])
-        tb   = load + sol
+        cap   = float(row['ESTIMATED_CAPACITY_kW'])
+        load  = float(row['current_load_kW'])
+        sol   = float(row['total_solar_capacity'])
+        dist  = float(row['DISTANCE_M'])
+        tb    = load + sol
         avail = cap - tb
         sh    = cap * SAFETY_MARGIN - tb
         ta    = tb + solar_kw
@@ -429,29 +418,42 @@ def run_assessment(user_lat, user_lon, solar_kw, radius_m):
         h = 100 if ratio >= 1.5 else 80 if ratio >= 1.0 else 50 if avail >= solar_kw else 0
         d = max(0.0, 100 * math.exp(-dist / 1000))
         s = 100 if ua <= 0.70 else 75 if ua <= 0.85 else 40 if ua <= 0.95 else 0
-        rule    = h * .40 + d * .30 + s * .30
+        rule    = h * 0.40 + d * 0.30 + s * 0.30
         ml      = float(ml_sc[i])
-        blended = rule * .55 + ml * .45
+        blended = rule * 0.55 + ml * 0.45
         out.append({
-            'rank': 0, 'code': str(row['TRANSFORMER_CODE']),
-            'lat': float(row['TRANSFORMER_LAT']), 'lon': float(row['TRANSFORMER_LON']),
-            'distance': round(dist, 0), 'score': round(blended, 2),
-            'ruleBasedScore': round(rule, 2), 'mlScore': round(ml, 2),
-            'headroomScore': round(h, 2), 'distanceScore': round(d, 2), 'stabilityScore': round(s, 2),
-            'suitabilityLabel': score_label(blended), 'capacity': cap,
-            'currentLoad': round(load, 2), 'existingSolar': round(sol, 2),
-            'availableHeadroom': round(avail, 2), 'safeHeadroom': round(sh, 2),
-            'utilizationBefore': round(ub * 100, 1), 'utilizationAfter': round(ua * 100, 1),
-            'canSupport': bool(avail >= solar_kw),
-            'curtailmentRisk': bool((ta / cap) > CURTAIL_THRESH),
-            'cluster': CLUSTER_NAMES.get(int(clusters[i]), 'Unknown'),
-            'futureLoad12m': round(float(lr.predict([[12]])[0]), 2),
-            'newSolar': solar_kw,
-            'recommendation': get_rec_text(blended, avail),
+            'rank': 0,
+            'code': str(row['TRANSFORMER_CODE']),
+            'lat':  float(row['TRANSFORMER_LAT']),
+            'lon':  float(row['TRANSFORMER_LON']),
+            'distance':         round(dist, 0),
+            'score':            round(blended, 2),
+            'ruleBasedScore':   round(rule, 2),
+            'mlScore':          round(ml, 2),
+            'headroomScore':    round(h, 2),
+            'distanceScore':    round(d, 2),
+            'stabilityScore':   round(s, 2),
+            'suitabilityLabel': score_label(blended),
+            'capacity':         cap,
+            'currentLoad':      round(load, 2),
+            'existingSolar':    round(sol, 2),
+            'availableHeadroom':round(avail, 2),
+            'safeHeadroom':     round(sh, 2),
+            'utilizationBefore':round(ub * 100, 1),
+            'utilizationAfter': round(ua * 100, 1),
+            'canSupport':       bool(avail >= solar_kw),
+            'curtailmentRisk':  bool((ta / cap) > CURTAIL_THRESH),
+            'cluster':          CLUSTER_NAMES.get(int(clusters[i]), 'Unknown'),
+            'futureLoad12m':    round(float(lr.predict([[12]])[0]), 2),
+            'newSolar':         solar_kw,
+            'recommendation':   get_rec_text(blended, avail),
             'capacityRecommendation': get_cap_rec(blended, avail),
         })
+
     out.sort(key=lambda x: x['score'], reverse=True)
-    for i, r in enumerate(out): r['rank'] = i + 1
+    out = out[:5]  # top 5 only
+    for i, r in enumerate(out):
+        r['rank'] = i + 1
     return out
 
 
@@ -460,10 +462,16 @@ def run_assessment(user_lat, user_lon, solar_kw, radius_m):
 # ─────────────────────────────────────────────────────────────────────────────
 def build_map(results, user_lat, user_lon, selected_code=None):
     m = folium.Map(location=[user_lat, user_lon], zoom_start=14, tiles='CartoDB positron')
+    # User location — blue, larger, with a white ring so it's unmistakable
     folium.CircleMarker(
-        [user_lat, user_lon], radius=11,
-        color='white', fill=True, fill_color='#d97706', fill_opacity=0.95, weight=2.5,
-        popup=folium.Popup('<b style="font-family:monospace">Your Location</b>', max_width=150),
+        [user_lat, user_lon], radius=13,
+        color='white', fill=True, fill_color='#2563eb', fill_opacity=0.95, weight=3,
+        popup=folium.Popup('<b style="font-family:monospace">📍 Your Location</b>', max_width=150),
+    ).add_to(m)
+    # Smaller inner dot for pin effect
+    folium.CircleMarker(
+        [user_lat, user_lon], radius=5,
+        color='#2563eb', fill=True, fill_color='white', fill_opacity=1.0, weight=2,
     ).add_to(m)
     for tf in results:
         col = score_color(tf['score'])
@@ -477,64 +485,70 @@ def build_map(results, user_lat, user_lon, selected_code=None):
                 f"<b>{tf['code']}</b><br>Score: {tf['score']:.1f}/100<br>"
                 f"Dist: {tf['distance']:.0f} m<br>Util after: {tf['utilizationAfter']:.1f}%<br>"
                 f"{'✅ Supported' if tf['canSupport'] else '❌ Not supported'}</div>",
-                max_width=200),
+                max_width=200,
+            ),
         ).add_to(m)
     return m
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GPS COMPONENT  (self-contained iframe)
+# GPS COMPONENT
+# Uses streamlit-js-eval to get browser geolocation and return it directly
+# into session_state — no query params, no page reload, no widget cache issues.
+# If streamlit-js-eval isn't installed, falls back to a manual-entry note.
 # ─────────────────────────────────────────────────────────────────────────────
 def gps_component():
-    st.components.v1.html("""
-<style>
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:transparent;font-family:'Space Mono',monospace;}
-  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  button{padding:9px 15px;background:linear-gradient(145deg,#2e6f40,#1a4d2b);
-    color:#fff;border:none;border-radius:6px;font-family:inherit;font-size:11px;
-    font-weight:700;letter-spacing:.1em;cursor:pointer;
-    box-shadow:0 8px 28px rgba(24,160,88,.22);}
-  .or{font-size:11px;color:#7a7264;}
-  .st{margin-top:7px;font-size:11px;color:#7a7264;min-height:15px;}
-</style>
-<div class="row">
-  <button onclick="go()">📍 Use GPS</button>
-  <span class="or">or enter coordinates below</span>
-</div>
-<div class="st" id="s">Click to auto-detect location</div>
-<script>
-function go(){
-  var s=document.getElementById('s');
-  if(!navigator.geolocation){s.style.color='#dc2626';s.textContent='Not supported';return;}
-  s.style.color='#d97706';s.textContent='Detecting…';
-  navigator.geolocation.getCurrentPosition(
-    function(p){
-      var la=p.coords.latitude.toFixed(6),lo=p.coords.longitude.toFixed(6);
-      s.style.color='#18a058';s.textContent='GPS active: '+la+', '+lo;
-      var u=new URL(window.parent.location.href);
-      u.searchParams.set('gps_lat',la);u.searchParams.set('gps_lon',lo);
-      window.parent.location.href=u.toString();
-    },
-    function(e){s.style.color='#dc2626';s.textContent=e.message;},
-    {enableHighAccuracy:true,timeout:10000}
-  );
-}
-</script>
-""", height=68)
+    """Show GPS button. On click, get coords and write directly to session_state."""
+
+    col_btn, col_status = st.columns([1, 2])
+
+    with col_btn:
+        get_gps = st.button(
+            "📍 Use GPS",
+            key="gps_btn",
+            help="Auto-fill coordinates from your device location",
+        )
+
+    if get_gps:
+        # Use streamlit-js-eval to call browser geolocation API directly
+        try:
+            from streamlit_js_eval import get_geolocation
+            loc = get_geolocation()
+            if loc and "coords" in loc:
+                coords = loc["coords"]
+                # Write directly to session_state — no widget cache involved
+                st.session_state.lat = round(float(coords["latitude"]), 6)
+                st.session_state.lon = round(float(coords["longitude"]), 6)
+                st.session_state.gps_active = True
+                st.rerun()
+            else:
+                with col_status:
+                    st.warning("Could not get location — allow browser access")
+        except ImportError:
+            with col_status:
+                st.info("Install streamlit-js-eval for GPS: `pip install streamlit-js-eval`")
+
+    if st.session_state.gps_active:
+        st.markdown(
+            f'<div class="k-gps-active">📍 GPS: {st.session_state.lat:.6f}, '            f'{st.session_state.lon:.6f}</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SHARED TOPBAR
+# TOPBAR
 # ─────────────────────────────────────────────────────────────────────────────
 def render_topbar(subtitle="Solar Transformer Suitability"):
     st.markdown(
         f'<div class="k-topbar">'
-        f'<div class="k-logo"><span class="kin">KIN</span><span class="etic">ETIC</span><span class="dot"></span></div>'
+        f'<div class="k-logo">'
+        f'<span class="kin">KIN</span><span class="etic">ETIC</span>'
+        f'<span class="dot"></span></div>'
         f'<div class="k-tag">{subtitle}</div>'
         f'<div class="k-live"><div class="k-live-dot"></div>LIVE</div>'
         f'</div>',
-        unsafe_allow_html=True)
+        unsafe_allow_html=True,
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -543,10 +557,9 @@ def render_topbar(subtitle="Solar Transformer Suitability"):
 def page_home():
     render_topbar()
 
-    # Two columns: left = hero copy, right = form card
     col_left, col_right = st.columns([1.3, 1], gap="large")
 
-    # ── LEFT: pure display HTML ──────────────────────────────────────────────
+    # ── LEFT: hero copy ──────────────────────────────────────────────────────
     with col_left:
         st.markdown("""
 <div style="padding:60px 24px 60px 40px">
@@ -570,59 +583,86 @@ def page_home():
   </div>
 </div>""", unsafe_allow_html=True)
 
-    # ── RIGHT: form inputs wrapped in a styled card ──────────────────────────
+    # ── RIGHT: form card ─────────────────────────────────────────────────────
     with col_right:
         st.markdown('<div style="padding:40px 40px 40px 8px">', unsafe_allow_html=True)
 
-        with st.container(border=False):
-            # Card shell — top stripe + glow
-            st.markdown("""
-<div style="background:#fff;border:1px solid #e0dbd0;border-radius:18px;
-  padding:26px;box-shadow:0 32px 80px rgba(20,16,5,.13),0 8px 24px rgba(20,16,5,.08);
-  position:relative;overflow:hidden;">
-  <div style="position:absolute;top:0;left:0;right:0;height:3px;border-radius:18px 18px 0 0;
-    background:linear-gradient(90deg,#dc2626,#f4601a 30%,#d97706 55%,#2e6f40)"></div>
-  <div style="position:absolute;inset:0;border-radius:18px;pointer-events:none;
-    background:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(244,96,26,.04),transparent)"></div>
-""", unsafe_allow_html=True)
+        # Card decoration (top stripe only — no open structural divs)
+        st.markdown("""
+<div style="height:3px;border-radius:3px 3px 0 0;
+  background:linear-gradient(90deg,#dc2626,#f4601a 30%,#d97706 55%,#2e6f40);
+  margin-bottom:-1px;"></div>""", unsafe_allow_html=True)
 
-            # LOCATION
-            st.markdown('<div class="k-sec-label" style="margin-top:8px">Location</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            # LOCATION section
+            st.markdown('<div class="k-sec-label">Location</div>', unsafe_allow_html=True)
             st.markdown('<div class="k-block-or">', unsafe_allow_html=True)
+
+            # GPS button — writes directly to session_state.lat/lon then reruns
             gps_component()
+
+            # NO key= on these inputs — Streamlit re-seeds value= every render.
+            # session_state.lat/lon is the single source of truth and is updated
+            # by gps_component() before st.rerun() fires.
             lc, rc = st.columns(2)
-            lat = lc.number_input("Latitude",  value=st.session_state.lat,  step=0.0001, format="%.6f")
-            lon = rc.number_input("Longitude", value=st.session_state.lon,  step=0.0001, format="%.6f")
+            lat = lc.number_input(
+                "Latitude",
+                value=st.session_state.lat,
+                min_value=-90.0, max_value=90.0,
+                step=0.000100, format="%.6f",
+            )
+            lon = rc.number_input(
+                "Longitude",
+                value=st.session_state.lon,
+                min_value=-180.0, max_value=180.0,
+                step=0.000100, format="%.6f",
+            )
             st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown('<div class="k-divider"></div>', unsafe_allow_html=True)
 
-            # SOLAR
+            # SOLAR section
             st.markdown('<div class="k-sec-label">Solar Installation</div>', unsafe_allow_html=True)
             st.markdown('<div class="k-block-am">', unsafe_allow_html=True)
             lc2, rc2 = st.columns(2)
-            solar_kw = lc2.number_input("Capacity (kW)",     value=5.0,  min_value=0.5, max_value=200.0, step=0.5)
-            radius_m = rc2.number_input("Search Radius (m)", value=5000, min_value=100, max_value=20000, step=100)
+            solar_kw = lc2.number_input(
+                "Capacity (kW)",
+                value=st.session_state.solar_kw,
+                min_value=0.5, max_value=200.0, step=0.5,
+            )
+            radius_m = rc2.number_input(
+                "Search Radius (m)",
+                value=float(st.session_state.radius_m),
+                min_value=100.0, max_value=20000.0, step=100.0,
+            )
             st.markdown('</div>', unsafe_allow_html=True)
 
             if st.session_state.error:
-                st.markdown(f'<p class="k-error">⚠ {st.session_state.error}</p>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<p class="k-error">⚠ {st.session_state.error}</p>',
+                    unsafe_allow_html=True,
+                )
 
-            st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
             run = st.button("▶  Run Assessment", use_container_width=True, type="primary")
 
-            # close card shell div
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown('</div>', unsafe_allow_html=True)  # close padding wrapper
-
+    # ── Handle run ───────────────────────────────────────────────────────────
     if run:
-        st.session_state.lat = lat
-        st.session_state.lon = lon
+        # Persist user-edited values back to session state
+        st.session_state.lat      = lat
+        st.session_state.lon      = lon
+        st.session_state.solar_kw = solar_kw
+        st.session_state.radius_m = int(radius_m)
+
         with st.spinner("Analysing transformers…"):
             results = run_assessment(lat, lon, solar_kw, radius_m)
+
         if results is None:
-            st.session_state.error = f"No transformers found within {radius_m:.0f} m. Try increasing the radius."
+            st.session_state.error = (
+                f"No transformers found within {radius_m:.0f} m. "
+                f"Try increasing the search radius or check your coordinates."
+            )
             st.rerun()
         else:
             st.session_state.results  = results
@@ -646,7 +686,7 @@ def page_results():
 
     render_topbar("Assessment Results")
 
-    # ── Back button ──────────────────────────────────────────────────────────
+    # ── Back ─────────────────────────────────────────────────────────────────
     st.markdown('<div style="padding:14px 40px 0">', unsafe_allow_html=True)
     if st.button("← Back to Assessment"):
         st.session_state.page     = 'home'
@@ -655,27 +695,28 @@ def page_results():
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Stat tiles ───────────────────────────────────────────────────────────
+    # ── Stat tiles ────────────────────────────────────────────────────────────
     st.markdown('<div style="padding:0 36px">', unsafe_allow_html=True)
-    tc = st.columns(5)
-    tile_data = [
-        ('c0', str(len(results)),              '',       'Transformers Found'),
-        ('c1', f"{top:.1f}",                   top_cls,  'Top Score / 100'),
-        ('c2', str(supported),                 'gr',     'Can Support'),
-        ('c3', f"{results[0]['newSolar']} kW", 'bl',     'Solar Capacity'),
-        ('c4', str(curtail),                   'am',     'Curtailment Risk'),
+    cols = st.columns(5)
+    tiles = [
+        ('c0', str(len(results)),                   '',       'Transformers Found'),
+        ('c1', f"{top:.1f}",                         top_cls, 'Top Score / 100'),
+        ('c2', str(supported),                       'gr',    'Can Support'),
+        ('c3', f"{results[0]['newSolar']} kW",       'bl',    'Solar Capacity'),
+        ('c4', str(curtail),                         'am',    'Curtailment Risk'),
     ]
-    for col, (cls, val, vcls, lbl) in zip(tc, tile_data):
+    for col, (cls, val, vcls, lbl) in zip(cols, tiles):
         with col:
             st.markdown(
                 f'<div class="k-stat {cls}" style="margin:12px 4px">'
                 f'<div class="k-stat-val {vcls}">{val}</div>'
                 f'<div class="k-stat-lbl">{lbl}</div>'
                 f'</div>',
-                unsafe_allow_html=True)
+                unsafe_allow_html=True,
+            )
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Map ──────────────────────────────────────────────────────────────────
+    # ── Map ───────────────────────────────────────────────────────────────────
     st.markdown('<div style="padding:8px 40px 0">', unsafe_allow_html=True)
     st.markdown("""
 <div class="k-map-header">
@@ -685,7 +726,7 @@ def page_results():
     <div class="k-legend-item"><div class="k-legend-dot" style="background:#d97706"></div>Good</div>
     <div class="k-legend-item"><div class="k-legend-dot" style="background:#f4601a"></div>Fair</div>
     <div class="k-legend-item"><div class="k-legend-dot" style="background:#dc2626"></div>Poor</div>
-    <div class="k-legend-item"><div class="k-legend-dot" style="background:#d97706"></div>You</div>
+    <div class="k-legend-item"><div class="k-legend-dot" style="background:#2563eb"></div>You</div>
   </div>
 </div>
 <div class="k-map-wrap">""", unsafe_allow_html=True)
@@ -694,14 +735,13 @@ def page_results():
     m = build_map(results, st.session_state.lat, st.session_state.lon, sel_code)
     st_folium(m, width="100%", height=360, returned_objects=[])
 
-    st.markdown('</div>', unsafe_allow_html=True)  # close k-map-wrap
-    st.markdown('</div>', unsafe_allow_html=True)  # close padding
+    st.markdown('</div>', unsafe_allow_html=True)  # k-map-wrap
+    st.markdown('</div>', unsafe_allow_html=True)  # padding
     st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
 
-    # ── Ranked list + Detail panel ───────────────────────────────────────────
+    # ── List + Detail ─────────────────────────────────────────────────────────
     list_col, detail_col = st.columns([1.6, 1], gap="large")
 
-    # LEFT: ranked transformer cards
     with list_col:
         st.markdown('<div style="padding:0 8px 40px 40px">', unsafe_allow_html=True)
         st.markdown('<div class="k-sec-title">Ranked Transformers</div>', unsafe_allow_html=True)
@@ -716,28 +756,29 @@ def page_results():
 
             st.markdown(
                 f'<div class="k-tf-card {active}">'
-                f'<div><div class="k-rank-num">{tf["rank"]}</div><div class="k-rank-lbl">RANK</div></div>'
+                f'<div><div class="k-rank-num">{tf["rank"]}</div>'
+                f'<div class="k-rank-lbl">RANK</div></div>'
                 f'<div>'
                 f'<div class="k-tf-pills">'
                 f'<span class="k-tf-code">{tf["code"]}</span>'
                 f'<span class="k-dist-pill">{tf["distance"]:.0f} m</span>'
-                f'{c_pill}'
-                f'</div>'
+                f'{c_pill}</div>'
                 f'<div class="k-tf-cluster">{tf["cluster"]}</div>'
                 f'<div class="k-tf-metrics">'
                 f'<div><div class="k-tf-ml">Capacity</div><div class="k-tf-mv">{tf["capacity"]:.0f} kW</div></div>'
                 f'<div><div class="k-tf-ml">Load</div><div class="k-tf-mv">{tf["currentLoad"]:.1f} kW</div></div>'
                 f'<div><div class="k-tf-ml">Headroom</div><div class="k-tf-mv">{tf["availableHeadroom"]:.1f} kW</div></div>'
-                f'<div><div class="k-tf-ml">Util After</div><div class="k-tf-mv" style="color:{uc}">{tf["utilizationAfter"]:.1f}%</div></div>'
-                f'</div>'
-                f'</div>'
+                f'<div><div class="k-tf-ml">Util After</div>'
+                f'<div class="k-tf-mv" style="color:{uc}">{tf["utilizationAfter"]:.1f}%</div></div>'
+                f'</div></div>'
                 f'<div class="k-badge">'
                 f'{ring_html(tf["score"])}'
                 f'<div class="k-ring-lbl" style="color:{col}">{tf["suitabilityLabel"]}</div>'
-                f'<div style="font-size:9.5px;font-family:monospace;color:{sc_col};font-weight:700;margin-top:2px">{sc_txt}</div>'
-                f'</div>'
-                f'</div>',
-                unsafe_allow_html=True)
+                f'<div style="font-size:9.5px;font-family:monospace;color:{sc_col};font-weight:700;margin-top:2px">'
+                f'{sc_txt}</div>'
+                f'</div></div>',
+                unsafe_allow_html=True,
+            )
 
             if st.button("View Details →", key=f"vd_{tf['code']}"):
                 st.session_state.selected = tf
@@ -745,7 +786,6 @@ def page_results():
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # RIGHT: detail panel
     with detail_col:
         st.markdown('<div style="padding:0 40px 40px 8px">', unsafe_allow_html=True)
         st.markdown('<div class="k-sec-title">Details</div>', unsafe_allow_html=True)
@@ -758,7 +798,8 @@ def page_results():
                 '<div class="k-empty-ic">◎</div>'
                 '<div class="k-empty-tx">Select a transformer<br>to view detailed analysis</div>'
                 '</div></div>',
-                unsafe_allow_html=True)
+                unsafe_allow_html=True,
+            )
         else:
             tf  = selected
             col = score_color(tf['score'])
@@ -776,8 +817,9 @@ def page_results():
                     f'<span>Safe Maximum</span>'
                     f'<span style="color:#16a34a;font-weight:700">{cr["safe_max"]} kW</span>'
                     f'</div>'
-                    f'<div class="k-cap-msg">A {cr["kw"]} kW system is optimal based on available headroom.</div>'
-                    f'</div>'
+                    f'<div class="k-cap-msg">'
+                    f'A {cr["kw"]} kW system is optimal based on available headroom.'
+                    f'</div></div>'
                 )
             elif tf['score'] >= 60:
                 cap_html = '<div class="k-flag rd">⚠ Headroom too limited for a standard capacity tier</div>'
@@ -808,26 +850,37 @@ def page_results():
                 f'</div>'
 
                 f'<div class="k-sub-grid">'
-                f'<div class="k-sub-cell"><div class="k-sub-lbl">Headroom</div><div class="k-sub-val" style="color:#f4601a">{tf["headroomScore"]:.0f}</div></div>'
-                f'<div class="k-sub-cell"><div class="k-sub-lbl">Distance</div><div class="k-sub-val" style="color:#d97706">{tf["distanceScore"]:.0f}</div></div>'
-                f'<div class="k-sub-cell"><div class="k-sub-lbl">Stability</div><div class="k-sub-val" style="color:#2e6f40">{tf["stabilityScore"]:.0f}</div></div>'
+                f'<div class="k-sub-cell"><div class="k-sub-lbl">Headroom</div>'
+                f'<div class="k-sub-val" style="color:#f4601a">{tf["headroomScore"]:.0f}</div></div>'
+                f'<div class="k-sub-cell"><div class="k-sub-lbl">Distance</div>'
+                f'<div class="k-sub-val" style="color:#d97706">{tf["distanceScore"]:.0f}</div></div>'
+                f'<div class="k-sub-cell"><div class="k-sub-lbl">Stability</div>'
+                f'<div class="k-sub-val" style="color:#2e6f40">{tf["stabilityScore"]:.0f}</div></div>'
                 f'</div>'
 
                 f'<div class="k-m2-grid">'
-                f'<div class="k-mcell"><div class="k-mlbl">Rule Score</div><div class="k-mval" style="color:#f4601a">{tf["ruleBasedScore"]:.1f}</div></div>'
-                f'<div class="k-mcell"><div class="k-mlbl">ML Score</div><div class="k-mval" style="color:#d97706">{tf["mlScore"]:.1f}</div></div>'
+                f'<div class="k-mcell"><div class="k-mlbl">Rule Score</div>'
+                f'<div class="k-mval" style="color:#f4601a">{tf["ruleBasedScore"]:.1f}</div></div>'
+                f'<div class="k-mcell"><div class="k-mlbl">ML Score</div>'
+                f'<div class="k-mval" style="color:#d97706">{tf["mlScore"]:.1f}</div></div>'
                 f'</div>'
 
                 f'{bar_html("Utilisation Before", tf["utilizationBefore"])}'
                 f'{bar_html("Utilisation After",  tf["utilizationAfter"])}'
 
                 f'<div class="k-m2-grid" style="margin-top:10px">'
-                f'<div class="k-mcell"><div class="k-mlbl">Distance</div><div class="k-mval">{tf["distance"]:.0f} m</div></div>'
-                f'<div class="k-mcell"><div class="k-mlbl">Capacity</div><div class="k-mval">{tf["capacity"]:.0f} kW</div></div>'
-                f'<div class="k-mcell"><div class="k-mlbl">Available</div><div class="k-mval">{tf["availableHeadroom"]:.1f} kW</div></div>'
-                f'<div class="k-mcell"><div class="k-mlbl">Safe Headroom</div><div class="k-mval">{tf["safeHeadroom"]:.1f} kW</div></div>'
-                f'<div class="k-mcell"><div class="k-mlbl">Existing Solar</div><div class="k-mval">{tf["existingSolar"]:.1f} kW</div></div>'
-                f'<div class="k-mcell"><div class="k-mlbl">Load +12M</div><div class="k-mval">{tf["futureLoad12m"]:.1f} kW</div></div>'
+                f'<div class="k-mcell"><div class="k-mlbl">Distance</div>'
+                f'<div class="k-mval">{tf["distance"]:.0f} m</div></div>'
+                f'<div class="k-mcell"><div class="k-mlbl">Capacity</div>'
+                f'<div class="k-mval">{tf["capacity"]:.0f} kW</div></div>'
+                f'<div class="k-mcell"><div class="k-mlbl">Available</div>'
+                f'<div class="k-mval">{tf["availableHeadroom"]:.1f} kW</div></div>'
+                f'<div class="k-mcell"><div class="k-mlbl">Safe Headroom</div>'
+                f'<div class="k-mval">{tf["safeHeadroom"]:.1f} kW</div></div>'
+                f'<div class="k-mcell"><div class="k-mlbl">Existing Solar</div>'
+                f'<div class="k-mval">{tf["existingSolar"]:.1f} kW</div></div>'
+                f'<div class="k-mcell"><div class="k-mlbl">Load +12M</div>'
+                f'<div class="k-mval">{tf["futureLoad12m"]:.1f} kW</div></div>'
                 f'</div>'
 
                 f'{support_flag}'
@@ -836,9 +889,9 @@ def page_results():
 
                 f'<div class="k-mini-lbl">Recommendation</div>'
                 f'<div class="k-rec-box">{tf["recommendation"]}</div>'
-
                 f'</div>',
-                unsafe_allow_html=True)
+                unsafe_allow_html=True,
+            )
 
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -847,17 +900,6 @@ def page_results():
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
-    params = st.query_params
-    if 'gps_lat' in params and 'gps_lon' in params:
-        st.session_state.lat = float(params['gps_lat'])
-        st.session_state.lon = float(params['gps_lon'])
-
-    defaults = [('page','home'),('lat',6.849),('lon',79.9247),
-                ('results',None),('selected',None),('error',None)]
-    for k, v in defaults:
-        if k not in st.session_state:
-            st.session_state[k] = v
-
     if st.session_state.page == 'home':
         page_home()
     else:
