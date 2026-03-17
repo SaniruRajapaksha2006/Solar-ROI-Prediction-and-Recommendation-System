@@ -77,11 +77,20 @@ st.markdown("""
   --sh-gr: 0 8px 32px rgba(24,160,88,.22),0 2px 8px rgba(24,160,88,.14);
 }
 
+/* ── SPACING TOKENS ── */
+:root {
+  --page-x:  32px;   /* horizontal page gutter */
+  --page-top:20px;   /* top breathing room below topbar */
+  --gap-sec: 20px;   /* gap between major sections */
+  --gap-card:10px;   /* gap between cards in a list */
+  --col-gap:  24px;  /* gap between left/right columns */
+}
+
 html,body,.stApp{background:var(--bg)!important;color:var(--text)!important;font-family:var(--sans)!important;}
 #MainMenu,header,footer{visibility:hidden;}
 .block-container{padding:0!important;max-width:100%!important;}
 section[data-testid="stSidebar"]{display:none!important;}
-[data-testid="stHorizontalBlock"]{gap:0!important;}
+[data-testid="stHorizontalBlock"]{gap:var(--col-gap)!important;}
 [data-testid="column"]{padding:0!important;}
 .stApp>div{position:relative;z-index:1;}
 .stApp::before{
@@ -101,7 +110,7 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
   backdrop-filter:blur(20px) saturate(160%);
   border-bottom:1px solid var(--border);
   box-shadow:0 1px 0 var(--border),0 4px 20px rgba(20,16,5,.05);
-  padding:0 40px;height:56px;
+  padding:0 var(--page-x);height:56px;
   display:flex;align-items:center;gap:14px;
 }
 .k-logo{font-family:var(--display);font-size:17px;font-weight:800;letter-spacing:.12em;display:flex;align-items:center;}
@@ -178,7 +187,7 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 .k-map-wrap{border:1px solid var(--border);border-top:none;border-radius:0 0 14px 14px;overflow:hidden;}
 
 /* ── TF CARDS ── */
-.k-tf-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;box-shadow:var(--sh-sm);}
+.k-tf-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:var(--gap-card);display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;box-shadow:var(--sh-sm);}
 .k-tf-card.active{border-color:rgba(244,96,26,.55);background:rgba(244,96,26,.03);box-shadow:var(--sh-or);}
 .k-rank-num{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1;text-align:center;}
 .k-rank-lbl{font-size:8px;font-family:var(--mono);color:var(--muted);letter-spacing:.1em;text-transform:uppercase;text-align:center;margin-top:2px;}
@@ -554,7 +563,7 @@ def page_home():
     # ── LEFT: hero copy ──────────────────────────────────────────────────────
     with col_left:
         st.markdown("""
-<div style="padding:60px 24px 60px 40px">
+<div style="padding:48px 20px 48px 32px">
   <div class="k-eyebrow">Geospatial AI Assessment</div>
   <div class="k-title">
     <span class="lt">Transformer</span><br>
@@ -577,7 +586,7 @@ def page_home():
 
     # ── RIGHT: form card ─────────────────────────────────────────────────────
     with col_right:
-        st.markdown('<div style="padding:40px 40px 40px 8px">', unsafe_allow_html=True)
+        st.markdown('<div style="padding:48px 32px 40px 8px">', unsafe_allow_html=True)
 
         # Top colour stripe
         st.markdown("""
@@ -673,7 +682,7 @@ def page_results():
     render_topbar("Assessment Results")
 
     # ── Back ─────────────────────────────────────────────────────────────────
-    st.markdown('<div style="padding:14px 40px 0">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:16px 32px 0">', unsafe_allow_html=True)
     if st.button("← Back to Assessment"):
         st.session_state.page     = 'home'
         st.session_state.results  = None
@@ -682,7 +691,7 @@ def page_results():
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Stat tiles ────────────────────────────────────────────────────────────
-    st.markdown('<div style="padding:0 36px">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:0 32px">', unsafe_allow_html=True)
     cols = st.columns(5)
     tiles = [
         ('c0', str(len(results)),                   '',       'Transformers Found'),
@@ -694,7 +703,7 @@ def page_results():
     for col, (cls, val, vcls, lbl) in zip(cols, tiles):
         with col:
             st.markdown(
-                f'<div class="k-stat {cls}" style="margin:12px 4px">'
+                f'<div class="k-stat {cls}" style="margin:12px 6px">'
                 f'<div class="k-stat-val {vcls}">{val}</div>'
                 f'<div class="k-stat-lbl">{lbl}</div>'
                 f'</div>',
@@ -703,7 +712,7 @@ def page_results():
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Map ───────────────────────────────────────────────────────────────────
-    st.markdown('<div style="padding:8px 40px 0">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:var(--gap-sec) 32px 0">', unsafe_allow_html=True)
     st.markdown("""
 <div class="k-map-header">
   <span class="k-map-title">Transformer Map</span>
@@ -723,13 +732,13 @@ def page_results():
 
     st.markdown('</div>', unsafe_allow_html=True)  # k-map-wrap
     st.markdown('</div>', unsafe_allow_html=True)  # padding
-    st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
     # ── List + Detail ─────────────────────────────────────────────────────────
     list_col, detail_col = st.columns([1.6, 1], gap="large")
 
     with list_col:
-        st.markdown('<div style="padding:0 8px 40px 40px">', unsafe_allow_html=True)
+        st.markdown('<div style="padding:0 8px 40px 32px">', unsafe_allow_html=True)
         st.markdown('<div class="k-sec-title">Ranked Transformers</div>', unsafe_allow_html=True)
 
         for tf in results:
@@ -773,7 +782,7 @@ def page_results():
         st.markdown('</div>', unsafe_allow_html=True)
 
     with detail_col:
-        st.markdown('<div style="padding:0 40px 40px 8px">', unsafe_allow_html=True)
+        st.markdown('<div style="padding:0 32px 40px 8px">', unsafe_allow_html=True)
         st.markdown('<div class="k-sec-title">Details</div>', unsafe_allow_html=True)
 
         if not selected:
