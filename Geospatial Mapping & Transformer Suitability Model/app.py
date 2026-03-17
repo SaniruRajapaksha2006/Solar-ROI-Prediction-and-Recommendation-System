@@ -1,7 +1,8 @@
 """
 streamlit_app.py — Kinetic · Solar Transformer Suitability
 Fixed: GPS session state ordering, number_input value seeding,
-       query-param sync, and consistent backend wiring.
+       query-param sync, consistent backend wiring,
+       and removed orphaned HTML div wrappers that caused blank rectangles.
 Run: streamlit run streamlit_app.py
 """
 
@@ -26,7 +27,6 @@ st.set_page_config(
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SESSION STATE — initialise FIRST, before anything else runs
-# GPS query params override defaults if present
 # ─────────────────────────────────────────────────────────────────────────────
 def init_session():
     """Initialise session state defaults. Called once at startup."""
@@ -141,8 +141,6 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 /* ── FORM ── */
 .k-sec-label{font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--orange);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
 .k-sec-label::before{content:'';width:12px;height:1px;background:currentColor;opacity:.6;}
-.k-block-or{background:linear-gradient(135deg,rgba(244,96,26,.06),rgba(244,96,26,.02));border:1px solid rgba(244,96,26,.16);border-radius:10px;padding:14px;margin-bottom:4px;}
-.k-block-am{background:linear-gradient(135deg,rgba(217,119,6,.06),rgba(202,154,5,.02));border:1px solid rgba(217,119,6,.16);border-radius:10px;padding:14px;}
 .k-divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:16px 0;}
 .k-error{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);border-radius:6px;padding:10px 14px;font-size:12px;color:#b91c1c;font-family:var(--mono);margin-top:8px;}
 .k-gps-active{background:rgba(24,160,88,.1);border:1px solid rgba(24,160,88,.3);border-radius:6px;padding:8px 12px;font-size:11px;font-family:var(--mono);color:#15803d;margin-bottom:10px;}
@@ -462,13 +460,11 @@ def run_assessment(user_lat, user_lon, solar_kw, radius_m):
 # ─────────────────────────────────────────────────────────────────────────────
 def build_map(results, user_lat, user_lon, selected_code=None):
     m = folium.Map(location=[user_lat, user_lon], zoom_start=14, tiles='CartoDB positron')
-    # User location — blue, larger, with a white ring so it's unmistakable
     folium.CircleMarker(
         [user_lat, user_lon], radius=13,
         color='white', fill=True, fill_color='#2563eb', fill_opacity=0.95, weight=3,
         popup=folium.Popup('<b style="font-family:monospace">📍 Your Location</b>', max_width=150),
     ).add_to(m)
-    # Smaller inner dot for pin effect
     folium.CircleMarker(
         [user_lat, user_lon], radius=5,
         color='#2563eb', fill=True, fill_color='white', fill_opacity=1.0, weight=2,
@@ -493,9 +489,6 @@ def build_map(results, user_lat, user_lon, selected_code=None):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # GPS COMPONENT
-# Uses streamlit-js-eval to get browser geolocation and return it directly
-# into session_state — no query params, no page reload, no widget cache issues.
-# If streamlit-js-eval isn't installed, falls back to a manual-entry note.
 # ─────────────────────────────────────────────────────────────────────────────
 def gps_component():
     """Show GPS button. On click, get coords and write directly to session_state."""
@@ -510,13 +503,11 @@ def gps_component():
         )
 
     if get_gps:
-        # Use streamlit-js-eval to call browser geolocation API directly
         try:
             from streamlit_js_eval import get_geolocation
             loc = get_geolocation()
             if loc and "coords" in loc:
                 coords = loc["coords"]
-                # Write directly to session_state — no widget cache involved
                 st.session_state.lat = round(float(coords["latitude"]), 6)
                 st.session_state.lon = round(float(coords["longitude"]), 6)
                 st.session_state.gps_active = True
@@ -530,7 +521,8 @@ def gps_component():
 
     if st.session_state.gps_active:
         st.markdown(
-            f'<div class="k-gps-active">📍 GPS: {st.session_state.lat:.6f}, '            f'{st.session_state.lon:.6f}</div>',
+            f'<div class="k-gps-active">📍 GPS: {st.session_state.lat:.6f}, '
+            f'{st.session_state.lon:.6f}</div>',
             unsafe_allow_html=True,
         )
 
@@ -587,23 +579,20 @@ def page_home():
     with col_right:
         st.markdown('<div style="padding:40px 40px 40px 8px">', unsafe_allow_html=True)
 
-        # Card decoration (top stripe only — no open structural divs)
+        # Top colour stripe
         st.markdown("""
 <div style="height:3px;border-radius:3px 3px 0 0;
   background:linear-gradient(90deg,#dc2626,#f4601a 30%,#d97706 55%,#2e6f40);
   margin-bottom:-1px;"></div>""", unsafe_allow_html=True)
 
         with st.container(border=True):
-            # LOCATION section
+
+            # ── LOCATION ────────────────────────────────────────────────────
             st.markdown('<div class="k-sec-label">Location</div>', unsafe_allow_html=True)
-            st.markdown('<div class="k-block-or">', unsafe_allow_html=True)
 
             # GPS button — writes directly to session_state.lat/lon then reruns
             gps_component()
 
-            # NO key= on these inputs — Streamlit re-seeds value= every render.
-            # session_state.lat/lon is the single source of truth and is updated
-            # by gps_component() before st.rerun() fires.
             lc, rc = st.columns(2)
             lat = lc.number_input(
                 "Latitude",
@@ -617,13 +606,12 @@ def page_home():
                 min_value=-180.0, max_value=180.0,
                 step=0.000100, format="%.6f",
             )
-            st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown('<div class="k-divider"></div>', unsafe_allow_html=True)
 
-            # SOLAR section
+            # ── SOLAR ────────────────────────────────────────────────────────
             st.markdown('<div class="k-sec-label">Solar Installation</div>', unsafe_allow_html=True)
-            st.markdown('<div class="k-block-am">', unsafe_allow_html=True)
+
             lc2, rc2 = st.columns(2)
             solar_kw = lc2.number_input(
                 "Capacity (kW)",
@@ -635,7 +623,6 @@ def page_home():
                 value=float(st.session_state.radius_m),
                 min_value=100.0, max_value=20000.0, step=100.0,
             )
-            st.markdown('</div>', unsafe_allow_html=True)
 
             if st.session_state.error:
                 st.markdown(
@@ -649,7 +636,6 @@ def page_home():
 
     # ── Handle run ───────────────────────────────────────────────────────────
     if run:
-        # Persist user-edited values back to session state
         st.session_state.lat      = lat
         st.session_state.lon      = lon
         st.session_state.solar_kw = solar_kw
