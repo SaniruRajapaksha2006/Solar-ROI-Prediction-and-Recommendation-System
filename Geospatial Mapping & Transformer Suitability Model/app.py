@@ -179,12 +179,13 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 .k-stat-lbl{font-size:9px;color:var(--muted);margin-top:6px;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;}
 
 /* ── MAP ── */
-.k-map-header{background:var(--surface2);border:1px solid var(--border);border-radius:14px 14px 0 0;padding:12px 18px;display:flex;align-items:center;gap:10px;}
+.k-map-outer{border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+.k-map-header{background:var(--surface2);padding:12px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);}
 .k-map-title{font-size:11px;font-family:var(--mono);letter-spacing:.14em;color:var(--text2);text-transform:uppercase;}
 .k-legend{margin-left:auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
 .k-legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);font-family:var(--mono);}
 .k-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.k-map-wrap{border:1px solid var(--border);border-top:none;border-radius:0 0 14px 14px;overflow:hidden;}
+.k-map-body{padding:10px;background:var(--surface2);}
 
 /* ── TF CARDS ── */
 .k-tf-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:var(--gap-card);display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;box-shadow:var(--sh-sm);}
@@ -586,7 +587,7 @@ def page_home():
 
     # ── RIGHT: form card ─────────────────────────────────────────────────────
     with col_right:
-        st.markdown('<div style="padding:48px 32px 40px 8px">', unsafe_allow_html=True)
+        st.markdown('<div style="padding:48px 48px 40px 0px">', unsafe_allow_html=True)
 
         # Top colour stripe
         st.markdown("""
@@ -690,48 +691,49 @@ def page_results():
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Stat tiles ────────────────────────────────────────────────────────────
-    st.markdown('<div style="padding:0 32px">', unsafe_allow_html=True)
-    cols = st.columns(5)
-    tiles = [
-        ('c0', str(len(results)),                   '',       'Transformers Found'),
-        ('c1', f"{top:.1f}",                         top_cls, 'Top Score / 100'),
-        ('c2', str(supported),                       'gr',    'Can Support'),
-        ('c3', f"{results[0]['newSolar']} kW",       'bl',    'Solar Capacity'),
-        ('c4', str(curtail),                         'am',    'Curtailment Risk'),
+    # ── Stat tiles — single flex row ──────────────────────────────────────────
+    tiles_data = [
+        ('c0', str(len(results)),              '',      'Transformers Found'),
+        ('c1', f"{top:.1f}",                   top_cls, 'Top Score / 100'),
+        ('c2', str(supported),                 'gr',    'Can Support'),
+        ('c3', f"{results[0]['newSolar']} kW", 'bl',    'Solar Capacity'),
+        ('c4', str(curtail),                   'am',    'Curtailment Risk'),
     ]
-    for col, (cls, val, vcls, lbl) in zip(cols, tiles):
-        with col:
-            st.markdown(
-                f'<div class="k-stat {cls}" style="margin:12px 6px">'
-                f'<div class="k-stat-val {vcls}">{val}</div>'
-                f'<div class="k-stat-lbl">{lbl}</div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-    st.markdown('</div>', unsafe_allow_html=True)
+    tiles_html = ''.join(
+        f'<div class="k-stat {cls}" style="flex:1;min-width:0">'
+        f'<div class="k-stat-val {vcls}">{val}</div>'
+        f'<div class="k-stat-lbl">{lbl}</div>'
+        f'</div>'
+        for cls, val, vcls, lbl in tiles_data
+    )
+    st.markdown(
+        f'<div style="display:flex;gap:10px;padding:12px 32px 0;align-items:stretch">'
+        f'{tiles_html}</div>',
+        unsafe_allow_html=True,
+    )
 
     # ── Map ───────────────────────────────────────────────────────────────────
-    st.markdown('<div style="padding:var(--gap-sec) 32px 0">', unsafe_allow_html=True)
-    st.markdown("""
-<div class="k-map-header">
-  <span class="k-map-title">Transformer Map</span>
-  <div class="k-legend">
-    <div class="k-legend-item"><div class="k-legend-dot" style="background:#18a058"></div>Ideal</div>
-    <div class="k-legend-item"><div class="k-legend-dot" style="background:#d97706"></div>Good</div>
-    <div class="k-legend-item"><div class="k-legend-dot" style="background:#f4601a"></div>Fair</div>
-    <div class="k-legend-item"><div class="k-legend-dot" style="background:#dc2626"></div>Poor</div>
-    <div class="k-legend-item"><div class="k-legend-dot" style="background:#2563eb"></div>You</div>
-  </div>
-</div>
-<div class="k-map-wrap">""", unsafe_allow_html=True)
+    st.markdown(
+        '<div style="padding:20px 32px 0">'
+        '<div class="k-map-outer">'
+        '<div class="k-map-header">'
+        '<span class="k-map-title">Transformer Map</span>'
+        '<div class="k-legend">'
+        '<div class="k-legend-item"><div class="k-legend-dot" style="background:#18a058"></div>Ideal</div>'
+        '<div class="k-legend-item"><div class="k-legend-dot" style="background:#d97706"></div>Good</div>'
+        '<div class="k-legend-item"><div class="k-legend-dot" style="background:#f4601a"></div>Fair</div>'
+        '<div class="k-legend-item"><div class="k-legend-dot" style="background:#dc2626"></div>Poor</div>'
+        '<div class="k-legend-item"><div class="k-legend-dot" style="background:#2563eb"></div>You</div>'
+        '</div></div>'
+        '<div class="k-map-body">',
+        unsafe_allow_html=True,
+    )
 
     sel_code = selected['code'] if selected else None
     m = build_map(results, st.session_state.lat, st.session_state.lon, sel_code)
     st_folium(m, width="100%", height=360, returned_objects=[])
 
-    st.markdown('</div>', unsafe_allow_html=True)  # k-map-wrap
-    st.markdown('</div>', unsafe_allow_html=True)  # padding
+    st.markdown('</div></div></div>', unsafe_allow_html=True)  # k-map-body / k-map-outer / padding
     st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
     # ── List + Detail ─────────────────────────────────────────────────────────
