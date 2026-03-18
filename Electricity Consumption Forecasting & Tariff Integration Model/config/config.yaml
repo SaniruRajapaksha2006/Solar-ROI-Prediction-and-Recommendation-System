@@ -138,8 +138,8 @@ forecasting:
 
   # Ensemble
   ensemble:
-    lstm_weight: 0.3
-    pattern_weight: 0.7
+    lstm_weight: 0.25
+    pattern_weight: 0.75
     confidence_threshold: 0.6
 
 # ============================================================

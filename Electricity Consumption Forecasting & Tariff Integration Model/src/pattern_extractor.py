@@ -270,8 +270,44 @@ class ConsumptionPatternExtractor:
         else:
             adjustment_factor = 1.0
 
+        raw_ratio = user_avg / pattern_avg if pattern_avg > 0 else 1.0
+
         # Limit adjustment to reasonable range
-        adjustment_factor = max(0.8, min(1.2, adjustment_factor))
+        if user_avg < 50:  # Extremely low
+            # Allow raw ratio to go as low as it wants, but cap the maximum
+            adjustment_factor = min(1.2, raw_ratio)
+            # Ensure it doesn't go below 0.1
+            adjustment_factor = max(0.1, adjustment_factor)
+        elif user_avg < 75:  # Very low
+            adjustment_factor = min(1.18, raw_ratio)
+            adjustment_factor = max(0.12, adjustment_factor)
+        elif user_avg < 100:  # Very low
+            adjustment_factor = min(1.15, raw_ratio)
+            adjustment_factor = max(0.15, adjustment_factor)
+        elif user_avg < 125:  # Low
+            adjustment_factor = min(1.15, raw_ratio)
+            adjustment_factor = max(0.18, adjustment_factor)
+        elif user_avg < 150:  # Moderately low
+            adjustment_factor = min(1.12, raw_ratio)
+            adjustment_factor = max(0.22, adjustment_factor)
+        elif user_avg < 175:  # Slightly low
+            adjustment_factor = min(1.12, raw_ratio)
+            adjustment_factor = max(0.26, adjustment_factor)
+        elif user_avg < 200:  # Below average
+            adjustment_factor = min(1.1, raw_ratio)
+            adjustment_factor = max(0.3, adjustment_factor)
+        elif user_avg < 250:  # Average-low
+            adjustment_factor = min(1.1, raw_ratio)
+            adjustment_factor = max(0.35, adjustment_factor)
+        elif user_avg < 300:  # Average
+            adjustment_factor = min(1.08, raw_ratio)
+            adjustment_factor = max(0.4, adjustment_factor)
+        elif user_avg < 400:  # Above average
+            adjustment_factor = min(1.08, raw_ratio)
+            adjustment_factor = max(0.5, adjustment_factor)
+        else:  # High
+            adjustment_factor = min(1.05, raw_ratio)
+            adjustment_factor = max(0.6, adjustment_factor)
 
         logger.info(f"Adjustment factor: {adjustment_factor:.2f} (based on {len(common_months)} months)")
         logger.info(f"User median: {user_avg:.1f} kWh, Pattern median: {pattern_avg:.1f} kWh")
