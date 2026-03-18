@@ -1,0 +1,186 @@
+# ===============================================================
+# config.yaml — Single source of truth for all constants
+#
+# Rules:
+#   - Every hardcoded value lives here, not in Python files
+#   - Python files read this; they never define magic numbers
+#   - Column lists live here because they are data decisions,
+#     not code logic — changing a column means editing this file
+# ===============================================================
+
+
+# -- Location ----------------------------------------------------
+location:
+  primary:
+    name: Maharagama
+    lat:  6.8514
+    lon:  79.9211
+  fallback:
+    name: Colombo
+    lat:  6.9271
+    lon:  79.8612
+
+
+# -- Data Paths --------------------------------------------------
+paths:
+  ceb_dataset:    "processed/MASTER_DATASET_ALL_10TRANSFORMERS.csv"
+  weather_cache:   "data/raw/data_2025.csv"   # used by predict.py
+  weather_dataset: "data/raw/data_2025.csv"   # used by data_pipeline.py
+  processed_dir:  "data/processed"
+  final_dataset:  "final.csv"
+  model:          "models/best_solar_pipeline.pkl"
+  save_intermediates: false
+
+
+# -- NASA POWER API ----------------------------------------------
+nasa:
+  monthly_url:     "https://power.larc.nasa.gov/api/temporal/monthly/point"
+  climatology_url: "https://power.larc.nasa.gov/api/temporal/climatology/point"
+  community:       "RE"
+  timeout_seconds: 60
+  fill_value:      -999.0
+  latitude:        6.8514    # Maharagama primary site
+  longitude:       79.9211   # Maharagama primary site
+  start_year:      2025      # Training weather data year
+  end_year:        2025      # Training weather data year
+  params:
+    ALLSKY_SFC_SW_DWN: Solar_Irradiance_GHI  # kWh/m²/day
+    T2M:               Temperature            # °C  (monthly mean)
+    T2M_MAX:           Max_Temperature        # °C
+    T2M_MIN:           Min_Temperature        # °C
+    RH2M:              Humidity               # %
+    PRECTOTCORR:       Precipitation          # mm/day
+    WS10M:             Wind_Speed             # m/s
+    CLRSKY_SFC_SW_DWN: Clear_Sky_GHI         # kWh/m²/day
+
+
+# -- Imputation --------------------------------------------------
+imputation:
+  start_year:    2018   # Historical average window start
+  end_year:      2022   # Historical average window end
+  months:        [11, 12]  # Nov/Dec typically missing from CEB data
+
+
+# -- Solar Physics Constants -------------------------------------
+physics:
+  performance_ratio: 0.80    # System losses: inverter, wiring, soiling
+  temp_coefficient:  -0.005  # Panel efficiency loss per °C above 25°C
+  temp_reference:    25.0    # Reference temperature °C
+  humidity_default:  75.0    # Fallback RH% for Sri Lanka
+
+
+# -- Outlier Detection -------------------------------------------
+outlier_detection:
+  iqr_threshold:  1.5
+  target_column:  "EXPORT_kWh"
+
+
+# -- Feature Selection -------------------------------------------
+feature_selection:
+  # RandomForest finds non-linear interactions (e.g. Wind_Speed × Temperature cooling effect).
+  # Dropping features by linear |r| blinds the model to exactly these interactions.
+  # Set to 0.0 — only absolute zero-variance columns would be dropped; RF decides importance natively.
+  correlation_threshold: 0.0
+
+  # Columns that survive into final.csv but are NOT model inputs.
+  # ACCOUNT_NO  → GroupKFold split key, excluded from X
+  # EXPORT_kWh  → used to compute Efficiency, excluded from X
+  # Efficiency  → the training target (y)
+  non_feature_cols:
+    - ACCOUNT_NO
+    - EXPORT_kWh
+    - Efficiency
+
+  # Columns dropped during feature selection step.
+  # These are admin/redundant/collinear columns that arrive from the
+  # raw CEB CSV merge. They are dropped once here and never again.
+  cols_to_drop:
+    - TRANSFORMER_CODE
+    - TRANSFORMER_LAT
+    - TRANSFORMER_LON
+    - CUSTOMER_LAT
+    - CUSTOMER_LON
+    - DISTANCE_FROM_TF_M
+    - DATA_QUALITY
+    - SOURCE
+    - CAL_TARIFF
+    - PHASE
+    - YEAR
+    - HAS_SOLAR
+    - NET_CONSUMPTION_kWh
+    - IMPORT_kWh
+    - Total_Generation_kWh   # = EXPORT + IMPORT, not a solar signal
+    - Max_Temperature        # collinear with Temperature
+    - Min_Temperature        # collinear with Temperature
+    - Clear_Sky_GHI          # collinear with Solar_Irradiance_GHI
+
+  # Exact columns fed to pipeline.fit() and pipeline.predict().
+  # This list must be identical at training time and inference time.
+  model_features:
+    - Month
+    - INV_CAPACITY
+    - Solar_Irradiance_GHI
+    - Temperature
+    - Humidity
+    - Precipitation
+    - Wind_Speed
+    - Temp_Efficiency
+    - Temp_Range
+    - GHI_Adjusted
+    - Cloud_Factor
+    - Month_Sin
+    - Month_Cos
+    - Days_In_Month
+    - Expected_Generation
+    - Physics_Pred
+
+
+# -- Residential Filter ------------------------------------------
+residential:
+  max_capacity_kw: 20   # Sri Lanka residential cap — filters commercial
+
+
+# -- Training / Evaluation ---------------------------------------
+training:
+  test_size:         0.2
+  random_state:      42
+  n_folds:           5
+  overfit_threshold: 15.0   # kWh/kW gap above which model is flagged as overfit
+  cv_leak_threshold: -5.0   # negative gap that suggests CV leakage
+
+
+# -- C3S SEAS5 Forecast API --------------------------------------
+c3s:
+  dataset:             "seasonal-monthly-single-levels"
+  system:              "51"
+  originating_centre:  "ecmwf"
+  product_type:        "monthly_mean"
+  sri_lanka_area:      [8.5, 79.0, 5.5, 82.0]   # [N, W, S, E]
+  max_leadtime_months: 6
+  tmp_dir:             "/tmp/c3s_solar"
+
+
+# -- ROI / Financial Constants -----------------------------------
+# Net Plus export tariff history (source: PUCSL official page):
+#   Before Oct 2022 : LKR 22.00/kWh (first 7 yrs), 15.50/kWh (remaining 13 yrs)
+#   Oct 2022 – Jun 2024 : LKR 37.00/kWh (flat, for systems up to 500 kW)
+#   From 1 Jul 2024 (current) : LKR 27.06/kWh (flat, for systems up to 500 kW)
+#
+# All residential systems in this project are <= 20 kW
+# Use custom_tariff arg in predict.py to override without editing this file:
+#   python predict.py 5.0 27.06
+roi:
+  net_plus_tariff_lkr: 27.06    # LKR/kWh — Net Plus, from 1 Jul 2024 (PUCSL)
+  tariff_above_500kw:  23.18    # LKR/kWh — for systems > 500 kW (not residential)
+  tariff_legacy_2022:  37.00    # LKR/kWh — old rate Oct 2022–Jun 2024 (archived)
+  mae_kwh_per_kw:      18.0     # kWh/kW model uncertainty margin
+
+
+# -- Similarity Model --------------------------------------------
+similarity:
+  n_neighbors: 3          # k — how many historical months to average
+  metric:      euclidean  # euclidean or cosine
+  features:               # features used for distance calculation
+    - Solar_Irradiance_GHI
+    - Temperature
+    - Cloud_Factor
