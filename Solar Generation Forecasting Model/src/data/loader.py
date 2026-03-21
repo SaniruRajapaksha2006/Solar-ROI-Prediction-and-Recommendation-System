@@ -4,15 +4,14 @@ Loads CEB export data and NASA POWER weather, merges and saves.
 """
 
 from pathlib import Path
-
 import pandas as pd
-
 from utils.nasa_power import fetch_monthly, label_monthly, NASA_PARAMS
+from typing import Union
 
 
 class DataLoader:
 
-    def load_ceb_data(self, ceb_file_path: str | Path) -> pd.DataFrame:
+    def load_ceb_data(self, ceb_file_path: Union[str, Path]) -> pd.DataFrame:
         path = Path(ceb_file_path)
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
@@ -26,7 +25,7 @@ class DataLoader:
         print(f"  Loaded {len(df):,} solar records")
         return df
 
-    def load_local_weather_data(self, weather_path: str | Path = "data/raw/data_2025.csv") -> pd.DataFrame:
+    def load_local_weather_data(self, weather_path: Union[str, Path] = "data/raw/data_2025.csv") -> pd.DataFrame:
         path = Path(weather_path)
         if not path.exists():
             raise FileNotFoundError(f"Weather file not found: {path}")
@@ -39,7 +38,7 @@ class DataLoader:
     def fetch_weather_data(self, latitude: float, longitude: float,
                            start_yr: int = 2025, end_yr: int = 2025,
                            params: dict = None,
-                           save_path: str | Path = "data/raw/data_2025.csv") -> pd.DataFrame:
+                           save_path: Union[str, Path] = "data/raw/data_2025.csv") -> pd.DataFrame:
         """Fetch NASA POWER monthly weather and cache to CSV."""
         if params is None:
             params = NASA_PARAMS
@@ -61,7 +60,7 @@ class DataLoader:
         print(f"  {len(merged):,} records  |  {merged.shape[1]} columns")
         return merged
 
-    def save(self, df: pd.DataFrame, filepath: str | Path) -> None:
+    def save(self, df: pd.DataFrame, filepath: Union[str, Path]) -> None:
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(path, index=False)
