@@ -32,7 +32,7 @@ import pandas as pd
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
+from typing import Optional
 from utils.utils_config import get_similarity_config
 
 
@@ -58,7 +58,7 @@ class SimilarityEngine:
         self._scaler          = StandardScaler()
         self._nn              = NearestNeighbors(n_neighbors=self.n_neighbors,
                                                  metric=self.metric)
-        self._train_efficiency: np.ndarray | None = None
+        self._train_efficiency: Optional[np.ndarray] = None
         self._is_fitted = False
 
     # -- Fit -------------------------------------------------------------------

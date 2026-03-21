@@ -263,7 +263,7 @@ div[data-testid="stNumberInput"] label{
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
-CSV_PATH       = "MASTER_DATASET_ALL_10TRANSFORMERS.csv"
+CSV_PATH       = "../processed/MASTER_DATASET_RESIDENTIAL_ONLY.csv"
 DEFAULT_CAP_KW = 100
 SAFETY_MARGIN  = 0.80
 CURTAIL_THRESH = 0.75
