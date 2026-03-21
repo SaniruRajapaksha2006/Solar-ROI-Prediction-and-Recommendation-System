@@ -111,7 +111,7 @@ class SolarFinancialModel:
 
             current_import_tariff *= (1 + tariff_escalation)
 
-        roi_array = (total_net_profit / initial_investment_lkr) * 100
+        roi_array = ((total_net_profit - initial_investment_lkr) / initial_investment_lkr) * 100
 
 
         expected_roi = np.mean(roi_array)
