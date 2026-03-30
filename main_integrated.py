@@ -28,9 +28,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ============================================================================
 # PATH SETUP
-# ============================================================================
 
 # Get project root
 PROJECT_ROOT = Path(__file__).parent.absolute()
@@ -58,9 +56,7 @@ from shared.models import (
     ConsumptionForecast, ROIAnalysis, IntegratedResult
 )
 
-# ============================================================================
 # ARGUMENT PARSER
-# ============================================================================
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Integrated Solar ROI System')
     parser.add_argument('--lat', type=float, help='Latitude')
@@ -75,10 +71,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-# ============================================================================
 # COMPONENT 1 WRAPPER - Solar Generation Forecasting
-# ============================================================================
-
 class SolarGenerationWrapper:
     """Wrapper for Component 1 - Solar Generation Forecasting"""
 
@@ -190,10 +183,7 @@ class SolarGenerationWrapper:
         )
 
 
-# ============================================================================
 # COMPONENT 2 WRAPPER - Geospatial
-# ============================================================================
-
 class GeospatialWrapper:
     """Wrapper for Component 2 - Geospatial Mapping & Transformer Suitability"""
 
@@ -287,10 +277,7 @@ class GeospatialWrapper:
         return all_transformers[0] if all_transformers else None
 
 
-# ============================================================================
 # COMPONENT 3 WRAPPER - Consumption Forecasting
-# ============================================================================
-
 class ConsumptionWrapper:
     """Wrapper for Component 3 - Electricity Consumption Forecasting"""
 
@@ -440,10 +427,7 @@ class ConsumptionWrapper:
         )
 
 
-# ============================================================================
 # COMPONENT 4 WRAPPER - ROI Financial Model
-# ============================================================================
-
 class ROIWrapper:
     """Wrapper for Component 4 - ROI & Risk-Aware Financial Model"""
 
@@ -497,10 +481,7 @@ class ROIWrapper:
         )
 
 
-# ============================================================================
 # MAIN INTEGRATED SYSTEM
-# ============================================================================
-
 class IntegratedSolarSystem:
     """Main integrated system combining all 4 components"""
 
@@ -607,10 +588,7 @@ class IntegratedSolarSystem:
         print("\n" + "=" * 70)
 
 
-# ============================================================================
 # MAIN EXECUTION
-# ============================================================================
-
 def main():
     """Main execution with command line arguments"""
     args = parse_arguments()
