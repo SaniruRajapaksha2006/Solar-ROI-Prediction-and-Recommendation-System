@@ -30,6 +30,8 @@ class SolarGenerationForecast(BaseModel):
 class TransformerInfo(BaseModel):
     # Output from Component 2
     transformer_id: str
+    lat: float = 0.0  # Add latitude for map
+    lon: float = 0.0  # Add longitude for map
     distance_m: float
     suitability_score: float
     suitability_label: str
@@ -39,6 +41,7 @@ class TransformerInfo(BaseModel):
     can_support: bool
     curtailment_risk: bool
     recommendation: str
+    utilization_after: float = 0.0  # Add for map tooltip
 
 class ConsumptionForecast(BaseModel):
     # Output from Component 3
@@ -58,10 +61,10 @@ class ROIAnalysis(BaseModel):
     recommendation: str
 
 class IntegratedResult(BaseModel):
-    # Complete system output
     user_input: UserInput
     solar_forecast: SolarGenerationForecast
     transformer_info: Optional[TransformerInfo]
+    all_transformers: List[TransformerInfo] = []
     consumption_forecast: ConsumptionForecast
     roi_analysis: ROIAnalysis
     recommended_panel_size_kw: float
