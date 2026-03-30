@@ -111,7 +111,8 @@ class SolarFinancialModel:
 
             current_import_tariff *= (1 + tariff_escalation)
 
-        roi_array = ((total_net_profit - initial_investment_lkr) / initial_investment_lkr) * 100
+        # Calculate Annualized ROI (Compound Annual Growth Rate)
+        roi_array = (((total_net_profit / initial_investment_lkr) ** (1 / self.PROJECT_LIFETIME)) - 1) * 100
 
 
         expected_roi = np.mean(roi_array)
@@ -158,16 +159,16 @@ class SolarFinancialModel:
             "System_Size_KW": system_size_kw,
             "Total_Investment_LKR": initial_investment_lkr,
             "Expected_NPV_LKR": round(float(expected_npv), 2),
-            "Expected_ROI_Percent": round(float(expected_roi), 2),
+            "Expected_Annual_ROI_Percent": round(float(expected_roi), 2),  # <-- Updated Label
             "Expected_Payback_Years": round(float(expected_payback), 1),
             "Risk_Analysis": {
-                "Worst_Case_ROI_Percent": round(float(worst_case_roi), 2),
+                "Worst_Case_Annual_ROI_Percent": round(float(worst_case_roi), 2),  # <-- Updated Label
                 "Worst_Case_NPV_LKR": round(float(worst_case_npv), 2),
                 "Worst_Case_Payback_Years": round(float(worst_case_payback), 1),
                 "Certainty_Score": "High" if worst_case_npv > 0 else "Moderate"
             },
             "Scenario_Analysis": {
-                "Best_Case_ROI_Percent": round(float(best_case_roi), 2),
+                "Best_Case_Annual_ROI_Percent": round(float(best_case_roi), 2),  # <-- Updated Label
                 "Shortest_Payback_Years": round(float(shortest_payback), 1),
                 "Probability_Positive_ROI": round(float(prob_positive_roi), 1)
             },
