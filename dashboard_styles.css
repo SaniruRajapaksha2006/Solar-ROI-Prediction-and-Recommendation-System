@@ -662,3 +662,93 @@ div[data-testid="stHorizontalBlock"]:last-child .stButton > button {
     }
 }
 
+/* Vendor Comparison Styles */
+.k-vendor-comparison-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.k-vendor-card.cheapest {
+    border: 2px solid var(--green);
+    background: linear-gradient(135deg, var(--surface2), rgba(24, 160, 88, 0.05));
+    box-shadow: var(--sh-sm);
+}
+
+.k-badge-cheapest {
+    font-family: var(--mono);
+    font-size: 9px;
+    background: var(--green);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    letter-spacing: 0.5px;
+    margin-left: 8px;
+}
+
+.k-vendor-rating {
+    font-size: 11px;
+    color: var(--amber);
+    letter-spacing: 2px;
+    margin-top: 4px;
+}
+
+.k-vendor-price-box {
+    text-align: right;
+    min-width: 180px;
+}
+
+.k-price-large {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--green);
+    display: block;
+}
+
+.k-price-per-kw {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted2);
+}
+
+.k-savings-note {
+    background: rgba(24, 160, 88, 0.08);
+    border-left: 3px solid var(--green);
+    padding: 8px 16px;
+    margin: 8px 0 0 40px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    border-radius: 4px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .k-vendor-card {
+        flex-direction: column;
+        text-align: center;
+        gap: 16px;
+    }
+
+    .k-vendor-price-box {
+        text-align: center;
+        width: 100%;
+    }
+
+    .k-savings-note {
+        margin-left: 0;
+        text-align: center;
+    }
+
+    .k-vendor-rating {
+        text-align: center;
+    }
+
+    .k-badge-cheapest {
+        display: inline-block;
+        margin-top: 4px;
+    }
+}
+

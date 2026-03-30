@@ -12,26 +12,56 @@
             "Name": "Genso Power Technologies",
             "Location": "Maharagama",
             "Contact": "011 2 000 000",
-            "Specialty": "Residential & Commercial Solar"
+            "Specialty": "Residential & Commercial Solar",
+            "rating": 4.8,
+            "pricing": {
+                "3": 655000,
+                "3.4": 720000,
+                "3.5": 750000,
+                "4": 790000,
+                "5": 820000,
+                "8": 1480000,
+                "10": 1850000
+            }
         },
         {
             "Name": "Mega Solar (Pvt) Ltd",
             "Location": "Maharagama",
             "Contact": "011 2 111 111",
-            "Specialty": "Net Accounting & Hybrid Systems"
+            "Specialty": "Net Accounting & Hybrid Systems",
+            "rating": 4.5,
+            "pricing": {
+                "3": 640000,
+                "3.4": 695000,
+                "3.5": 730000,
+                "4": 770000,
+                "5": 795000,
+                "8": 1450000,
+                "10": 1820000
+            }
         },
         {
             "Name": "Growatt Lanka",
             "Location": "Maharagama",
             "Contact": "011 2 222 222",
-            "Specialty": "Inverters & Turnkey Solar Solutions"
+            "Specialty": "Inverters & Turnkey Solar Solutions",
+            "rating": 4.6,
+            "pricing": {
+                "3": 670000,
+                "3.4": 710000,
+                "3.5": 745000,
+                "4": 785000,
+                "5": 815000,
+                "8": 1490000,
+                "10": 1860000
+            }
         }
     ],
     "tariffs": {
         "base_import_tariff": 45.0,
         "export_tariff_under_5kw": 20.9,
         "export_tariff_over_5kw": 19.61,
-        "discount_rate": 0.040999999999999995
+        "discount_rate": 0.041
     },
     "last_updated": "2026-03-13 19:26:47"
 }

@@ -455,11 +455,17 @@ class ROIWrapper:
                 panel_size_kw, annual_generation_kwh, annual_consumption_kwh
             )
 
+            # Debug print
+            print(f"DEBUG ROI Result keys: {list(result.keys())}")
+            print(f"DEBUG Vendor_Price_Comparison exists: {'Vendor_Price_Comparison' in result}")
+
+            # Create ROIAnalysis with full data
             return ROIAnalysis(
                 total_investment_lkr=float(result['Total_Investment_LKR']),
-                expected_roi_percent=float(result['Expected_ANNUAL_ROI_Percent']),
+                expected_roi_percent=float(result['Expected_Annual_ROI_Percent']),
                 expected_payback_years=float(result['Expected_Payback_Years']),
-                recommendation=result.get('Recommendation', 'Review options')
+                recommendation=result.get('Recommendation', 'Review options'),
+                vendor_price_comparison=result.get('Vendor_Price_Comparison', [])  # Add this field
             )
         except Exception as e:
             logger.error(f"Error in Component 4: {e}")
