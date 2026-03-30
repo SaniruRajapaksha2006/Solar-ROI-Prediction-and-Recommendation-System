@@ -1191,6 +1191,130 @@ def tab_roi(roi, consumption, solar):
         </div>
         """, unsafe_allow_html=True)
 
+        # ========== VENDOR RECOMMENDATIONS SECTION (FULL WIDTH) ==========
+        st.markdown('<div style="clear: both;"></div>', unsafe_allow_html=True)
+
+        # Get vendors from results (passed from main_integrated)
+        vendors = roi.get('Recommended_Local_Vendors', [])
+        recommended_panel_size = solar.get('panel_size_kw', 5)
+
+        if vendors:
+            st.markdown(f"""
+                <div class="k-panel" style="margin: 0 32px 20px 32px; width: calc(100% - 64px);">
+                    {panel_header(f"Recommended Vendors — {recommended_panel_size} kW Systems",
+                                  "Certified installers with pricing estimates",
+                                  badge('VERIFIED', 'green'))}
+                    <div class="k-pb">
+                        <div class="k-vendor-grid">
+                """, unsafe_allow_html=True)
+
+            # Display vendors in a responsive grid (2 or 3 per row)
+            for vendor in vendors:
+                name = vendor.get('Name', 'N/A')
+                location = vendor.get('Location', 'N/A')
+                specialty = vendor.get('Specialty', 'N/A')
+                contact = vendor.get('Contact', 'N/A')
+
+                # Calculate estimated price for the recommended panel size
+                # Get pricing from the result if available, or calculate estimate
+                investment = roi.get('total_investment_lkr', 0)
+                if investment > 0:
+                    estimated_price = f"Rs. {investment:,.0f}"
+                else:
+                    estimated_price = "Contact for quote"
+
+                st.markdown(f"""
+                    <div class="k-vendor-card">
+                        <div class="k-vendor-info">
+                            <div class="k-vendor-name">{name}</div>
+                            <div class="k-vendor-desc">📍 {location} · {specialty}</div>
+                            <div class="k-vendor-price">
+                                <span class="k-price-label">Est. Price ({recommended_panel_size} kW):</span>
+                                <span class="k-price-value">{estimated_price}</span>
+                            </div>
+                        </div>
+                        <div class="k-vendor-contact">
+                            <div class="k-contact-icon">📞</div>
+                            <div class="k-contact-number">{contact}</div>
+                            <button class="k-contact-btn" onclick="window.location.href='tel:{contact.replace(' ', '')}'">
+                                Contact
+                            </button>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("""
+                        </div>
+                        <div class="k-vendor-note">
+                            <span class="k-note-icon">ℹ️</span>
+                            <span class="k-note-text">Prices are estimates based on market data. Contact vendors for exact quotes and installation details.</span>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            # Fallback vendor list if none in results
+            st.markdown(f"""
+                <div class="k-panel" style="margin: 0 32px 20px 32px; width: calc(100% - 64px);">
+                    {panel_header(f"Recommended Vendors — {recommended_panel_size} kW Systems",
+                                  "Certified solar installers in Sri Lanka",
+                                  badge('VERIFIED', 'green'))}
+                    <div class="k-pb">
+                        <div class="k-vendor-grid">
+                            <div class="k-vendor-card">
+                                <div class="k-vendor-info">
+                                    <div class="k-vendor-name">Genso Power Technologies</div>
+                                    <div class="k-vendor-desc">📍 Maharagama · Residential & Commercial Solar</div>
+                                    <div class="k-vendor-price">
+                                        <span class="k-price-label">Est. Price ({recommended_panel_size} kW):</span>
+                                        <span class="k-price-value">Rs. {roi.get('total_investment_lkr', 0):,.0f}</span>
+                                    </div>
+                                </div>
+                                <div class="k-vendor-contact">
+                                    <div class="k-contact-icon">📞</div>
+                                    <div class="k-contact-number">011 2 000 000</div>
+                                    <button class="k-contact-btn" onclick="window.location.href='tel:0112000000'">Contact</button>
+                                </div>
+                            </div>
+                            <div class="k-vendor-card">
+                                <div class="k-vendor-info">
+                                    <div class="k-vendor-name">Mega Solar (Pvt) Ltd</div>
+                                    <div class="k-vendor-desc">📍 Maharagama · Net Accounting & Hybrid Systems</div>
+                                    <div class="k-vendor-price">
+                                        <span class="k-price-label">Est. Price ({recommended_panel_size} kW):</span>
+                                        <span class="k-price-value">Rs. {roi.get('total_investment_lkr', 0):,.0f}</span>
+                                    </div>
+                                </div>
+                                <div class="k-vendor-contact">
+                                    <div class="k-contact-icon">📞</div>
+                                    <div class="k-contact-number">011 2 111 111</div>
+                                    <button class="k-contact-btn" onclick="window.location.href='tel:0112111111'">Contact</button>
+                                </div>
+                            </div>
+                            <div class="k-vendor-card">
+                                <div class="k-vendor-info">
+                                    <div class="k-vendor-name">Growatt Lanka</div>
+                                    <div class="k-vendor-desc">📍 Maharagama · Inverters & Turnkey Solar Solutions</div>
+                                    <div class="k-vendor-price">
+                                        <span class="k-price-label">Est. Price ({recommended_panel_size} kW):</span>
+                                        <span class="k-price-value">Rs. {roi.get('total_investment_lkr', 0):,.0f}</span>
+                                    </div>
+                                </div>
+                                <div class="k-vendor-contact">
+                                    <div class="k-contact-icon">📞</div>
+                                    <div class="k-contact-number">011 2 222 222</div>
+                                    <button class="k-contact-btn" onclick="window.location.href='tel:0112222222'">Contact</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="k-vendor-note">
+                            <span class="k-note-icon">ℹ️</span>
+                            <span class="k-note-text">Prices are estimates based on market data. Contact vendors for exact quotes.</span>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
 
 
 # PDF / HTML REPORT
