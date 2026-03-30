@@ -22,9 +22,8 @@ from pathlib import Path
 import plotly.graph_objects as go
 from geopy.distance import geodesic
 
-# ============================================================================
+
 # PAGE CONFIG
-# ============================================================================
 st.set_page_config(
     page_title="Kinetic | Solar ROI Intelligence",
     page_icon="🌞",
@@ -35,9 +34,8 @@ st.set_page_config(
 with open("dashboard_styles.css", "r") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# ============================================================================
+
 # SESSION STATE
-# ============================================================================
 def init_session():
     defaults = {
         "page": "home",
@@ -58,9 +56,8 @@ def init_session():
 
 init_session()
 
-# ============================================================================
+
 # HELPERS
-# ============================================================================
 def run_integrated_analysis(lat, lon, months, radius_m):
     project_root = Path(__file__).parent
     months_json = json.dumps(months)
@@ -94,9 +91,8 @@ def run_integrated_analysis(lat, lon, months, radius_m):
         return None
 
 
-# ============================================================================
+
 # GPS COMPONENT
-# ============================================================================
 def gps_component():
     col_btn, col_status = st.columns([1, 2])
     with col_btn:
@@ -117,9 +113,8 @@ def gps_component():
     return None
 
 
-# ============================================================================
+
 # MAP BUILD
-# ============================================================================
 def build_map(transformer_list, user_lat, user_lon, selected_code=None):
     m = folium.Map(location=[user_lat, user_lon], zoom_start=14, tiles='CartoDB positron')
     folium.CircleMarker(
@@ -251,9 +246,7 @@ def panel_header(title, subtitle="", badges="", color=""):
     </div>"""
 
 
-# ============================================================================
 # HOME PAGE
-# ============================================================================
 def home_page():
     st.markdown("""
     <div class="k-topbar">
@@ -349,9 +342,7 @@ def home_page():
         st.markdown('<p class="k-form-note">Analysis includes grid assessment, solar forecast, consumption prediction and ROI modelling.</p>', unsafe_allow_html=True)
 
 
-# ============================================================================
 # LOADING PAGE
-# ============================================================================
 def loading_page():
     st.markdown("""
     <div class="kin-loading">
@@ -390,9 +381,7 @@ def loading_page():
     st.rerun()
 
 
-# ============================================================================
 # RESULTS — TOPBAR & TABS
-# ============================================================================
 def results_topbar(panel_size, location_str):
     tabs_def = [
         ("grid",        "2", "Grid Assessment"),
@@ -453,9 +442,7 @@ def results_topbar(panel_size, location_str):
     st.markdown('<div style="border-bottom: 1px solid var(--border); margin: 0 32px 24px 32px;"></div>', unsafe_allow_html=True)
 
 
-# ============================================================================
 # RESULTS PAGE
-# ============================================================================
 def results_page():
     results = st.session_state.results
     if not results:
@@ -492,7 +479,7 @@ def results_page():
     elif tab == "roi":
         tab_roi(roi, consumption, solar)
 
-    # ── Action buttons — 3 equal columns spanning full width ──────────────
+    # Action buttons — 3 equal columns spanning full width
     st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
     btn_col1, btn_col2, btn_col3 = st.columns(3)
 
@@ -527,9 +514,8 @@ def results_page():
             st.rerun()
 
 
-# ============================================================================
+
 # GRID TAB
-# ============================================================================
 def tab_grid(transformer_list, panel_size, user_lat, user_lon):
     if not isinstance(transformer_list, list):
         single_tf = transformer_list
@@ -699,7 +685,7 @@ def tab_grid(transformer_list, panel_size, user_lat, user_lon):
         </div>
         """, unsafe_allow_html=True)
 
-    # ========== FULL WIDTH BEST TRANSFORMER DETAILS ==========
+    # FULL WIDTH BEST TRANSFORMER DETAILS
     st.markdown('<div style="clear: both;"></div>', unsafe_allow_html=True)
 
     st.markdown(f"""
@@ -725,9 +711,8 @@ def tab_grid(transformer_list, panel_size, user_lat, user_lon):
     """, unsafe_allow_html=True)
 
 
-# ============================================================================
+
 # SOLAR TAB
-# ============================================================================
 def tab_solar(solar, panel_size):
     annual_gen = solar.get('annual_total_kwh', 0)
     annual_income = solar.get('annual_income_lkr', 0)
@@ -846,7 +831,7 @@ def tab_solar(solar, panel_size):
         </div>
         """, unsafe_allow_html=True)
 
-    # ========== FULL WIDTH RANKED MONTHLY BREAKDOWN TABLE ==========
+    # FULL WIDTH RANKED MONTHLY BREAKDOWN TABLE
     st.markdown('<div style="clear: both;"></div>', unsafe_allow_html=True)
 
     if values and any(values):
@@ -897,9 +882,8 @@ def tab_solar(solar, panel_size):
         """, unsafe_allow_html=True)
 
 
-# ============================================================================
+
 # CONSUMPTION TAB
-# ============================================================================
 def tab_consumption(consumption):
     annual_cons = consumption.get('annual_total_kwh', 0)
     annual_bill = consumption.get('annual_total_bill_lkr', 0)
@@ -1025,7 +1009,7 @@ def tab_consumption(consumption):
         </div>
         """, unsafe_allow_html=True)
 
-    # ========== FULL WIDTH RANKED MONTHLY BREAKDOWN TABLE ==========
+    # FULL WIDTH RANKED MONTHLY BREAKDOWN TABLE
     st.markdown('<div style="clear: both;"></div>', unsafe_allow_html=True)
 
     if values and any(values):
@@ -1073,9 +1057,8 @@ def tab_consumption(consumption):
         """, unsafe_allow_html=True)
 
 
-# ============================================================================
+
 # ROI TAB
-# ============================================================================
 def tab_roi(roi, consumption, solar):
     expected_roi = roi.get('expected_roi_percent', 0)
     payback = roi.get('expected_payback_years', 0)
@@ -1096,7 +1079,7 @@ def tab_roi(roi, consumption, solar):
         ("Risk Certainty", "HIGH", "Investment grade", "red"),
     ]), unsafe_allow_html=True)
 
-    # ========== CUMULATIVE CASH FLOW CHART (FULL WIDTH) ==========
+    # CUMULATIVE CASH FLOW CHART (FULL WIDTH)
     st.markdown(f"""
     <div class="k-panel" style="margin: 0 32px 20px 32px; width: calc(100% - 64px);">
         {panel_header("Cumulative Cash Flow Projection",
@@ -1129,7 +1112,7 @@ def tab_roi(roi, consumption, solar):
     st.plotly_chart(fig, use_container_width=True)
     st.markdown('</div></div>', unsafe_allow_html=True)
 
-    # ========== 2x2 GRID LAYOUT ==========
+    # 2x2 GRID LAYOUT
     st.markdown('<div style="clear: both;"></div>', unsafe_allow_html=True)
 
     # Row 1: ROI Distribution + Risk Factor Breakdown
@@ -1142,7 +1125,6 @@ def tab_roi(roi, consumption, solar):
             <div class="k-pb">
         """, unsafe_allow_html=True)
 
-        # ROI Distribution bins
         if best_roi and worst_roi:
             bins = [f"{worst_roi + i * ((best_roi - worst_roi) // 17):.0f}%" for i in range(18)]
         else:
@@ -1208,10 +1190,95 @@ def tab_roi(roi, consumption, solar):
         </div>
         """, unsafe_allow_html=True)
 
+    # ========== VENDOR COMPARISON SECTION (FULL WIDTH) ==========
+    # IMPORTANT: This is at top-level indent — outside all 'with' column blocks
+    st.markdown('<div style="clear: both;"></div>', unsafe_allow_html=True)
 
-# ============================================================================
+    vendor_comparison = roi.get('vendor_price_comparison', [])
+    if not vendor_comparison:
+        vendor_comparison = roi.get('Vendor_Price_Comparison', [])
+
+    recommended_panel_size = solar.get('panel_size_kw', 5)
+
+    if vendor_comparison:
+        vendor_cards_html = ""
+
+        for i, vendor in enumerate(vendor_comparison):
+            name = vendor.get('name', 'N/A')
+            location = vendor.get('location', 'N/A')
+            specialty = vendor.get('specialty', 'N/A')
+            contact = vendor.get('contact', 'N/A')
+            rating = vendor.get('rating', 4.0)
+            price = vendor.get('price_lkr', 0)
+            price_per_kw = vendor.get('price_per_kw', 0)
+            is_cheapest = i == 0
+            savings = vendor_comparison[0]['price_lkr'] - price if not is_cheapest else 0
+            price_display = f"Rs. {price / 1_000_000:.2f}M" if price >= 1_000_000 else f"Rs. {price:,.0f}"
+            cheapest_class = "cheapest" if is_cheapest else ""
+            cheapest_badge = '<span class="k-badge-cheapest">★ CHEAPEST</span>' if is_cheapest else ""
+            stars = "⭐" * int(rating) + "☆" * (5 - int(rating))
+            contact_clean = contact.replace(" ", "")
+
+            savings_note = ""
+            if not is_cheapest and savings > 0:
+                savings_note = (
+                    f'<div class="k-savings-note">'
+                    f'Save Rs. {savings:,.0f} by choosing {vendor_comparison[0]["name"]}'
+                    f'</div>'
+                )
+
+            vendor_cards_html += (
+                f'<div class="k-vendor-card {cheapest_class}">'
+                f'<div class="k-vendor-info">'
+                f'<div class="k-vendor-name">{name} {cheapest_badge}</div>'
+                f'<div class="k-vendor-desc">{location} · {specialty}</div>'
+                f'<div class="k-vendor-rating">{stars} {rating}</div>'
+                f'</div>'
+                f'<div class="k-vendor-price-box">'
+                f'<div class="k-vendor-price">'
+                f'<span class="k-price-large">{price_display}</span>'
+                f'<span class="k-price-per-kw">(Rs. {price_per_kw:,.0f}/kW)</span>'
+                f'</div>'
+                f'<div class="k-vendor-contact">'
+                f'<div class="k-contact-icon">📞</div>'
+                f'<div class="k-contact-number">{contact}</div>'
+                f'<a href="tel:{contact_clean}" class="k-contact-btn" '
+                f'style="display:inline-block;text-decoration:none;text-align:center;">'
+                f'Contact Now</a>'
+                f'</div>'
+                f'</div>'
+                f'</div>'
+                f'{savings_note}'
+            )
+
+        cheapest_name = vendor_comparison[0]['name'] if vendor_comparison else ''
+        ph = panel_header(
+            f"Compare Vendor Prices — {recommended_panel_size} kW Systems",
+            f"Prices from verified installers — Cheapest: {cheapest_name}",
+            badge('COMPARE & SAVE', 'green')
+        )
+
+        html_out = (
+            f'<div class="k-panel" style="margin:0 32px 20px 32px;width:calc(100% - 64px);">'
+            f'{ph}'
+            f'<div class="k-pb">'
+            f'<div class="k-vendor-comparison-grid">'
+            f'{vendor_cards_html}'
+            f'</div>'
+            f'<div class="k-vendor-note">'
+            f'<span class="k-note-icon">ℹ️</span>'
+            f'<span class="k-note-text">Prices are estimates based on market data. '
+            f'Contact vendors for exact quotes.</span>'
+            f'</div>'
+            f'</div>'
+            f'</div>'
+        )
+
+        st.markdown(html_out, unsafe_allow_html=True)
+
+
+
 # PDF / HTML REPORT
-# ============================================================================
 def generate_pdf_report(results):
     html_content = generate_html_report(results)
     with tempfile.NamedTemporaryFile(delete=False, suffix='.html', mode='w') as f:
@@ -1436,9 +1503,7 @@ def generate_html_report(results):
     return html
 
 
-# ============================================================================
 # MAIN
-# ============================================================================
 def main():
     if st.session_state.analysis_running:
         loading_page()

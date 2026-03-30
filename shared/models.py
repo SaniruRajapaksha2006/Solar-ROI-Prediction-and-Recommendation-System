@@ -59,6 +59,7 @@ class ROIAnalysis(BaseModel):
     expected_roi_percent: float
     expected_payback_years: float
     recommendation: str
+    vendor_price_comparison: List[Dict[str, Any]] = []
 
 class IntegratedResult(BaseModel):
     user_input: UserInput

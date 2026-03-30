@@ -28,9 +28,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ============================================================================
 # PATH SETUP
-# ============================================================================
 
 # Get project root
 PROJECT_ROOT = Path(__file__).parent.absolute()
@@ -58,9 +56,7 @@ from shared.models import (
     ConsumptionForecast, ROIAnalysis, IntegratedResult
 )
 
-# ============================================================================
 # ARGUMENT PARSER
-# ============================================================================
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Integrated Solar ROI System')
     parser.add_argument('--lat', type=float, help='Latitude')
@@ -75,10 +71,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-# ============================================================================
 # COMPONENT 1 WRAPPER - Solar Generation Forecasting
-# ============================================================================
-
 class SolarGenerationWrapper:
     """Wrapper for Component 1 - Solar Generation Forecasting"""
 
@@ -190,10 +183,7 @@ class SolarGenerationWrapper:
         )
 
 
-# ============================================================================
 # COMPONENT 2 WRAPPER - Geospatial
-# ============================================================================
-
 class GeospatialWrapper:
     """Wrapper for Component 2 - Geospatial Mapping & Transformer Suitability"""
 
@@ -287,10 +277,7 @@ class GeospatialWrapper:
         return all_transformers[0] if all_transformers else None
 
 
-# ============================================================================
 # COMPONENT 3 WRAPPER - Consumption Forecasting
-# ============================================================================
-
 class ConsumptionWrapper:
     """Wrapper for Component 3 - Electricity Consumption Forecasting"""
 
@@ -440,10 +427,7 @@ class ConsumptionWrapper:
         )
 
 
-# ============================================================================
 # COMPONENT 4 WRAPPER - ROI Financial Model
-# ============================================================================
-
 class ROIWrapper:
     """Wrapper for Component 4 - ROI & Risk-Aware Financial Model"""
 
@@ -471,36 +455,45 @@ class ROIWrapper:
                 panel_size_kw, annual_generation_kwh, annual_consumption_kwh
             )
 
+            # Debug print
+            print(f"DEBUG ROI Result keys: {list(result.keys())}")
+            print(f"DEBUG Vendor_Price_Comparison exists: {'Vendor_Price_Comparison' in result}")
+
+            # Create ROIAnalysis with full data
             return ROIAnalysis(
                 total_investment_lkr=float(result['Total_Investment_LKR']),
-                expected_roi_percent=float(result['Expected_ROI_Percent']),
+                expected_roi_percent=float(result['Expected_Annual_ROI_Percent']),
                 expected_payback_years=float(result['Expected_Payback_Years']),
-                recommendation=result.get('Recommendation', 'Review options')
+                recommendation=result.get('Recommendation', 'Review options'),
+                vendor_price_comparison=result.get('Vendor_Price_Comparison', [])  # Add this field
             )
         except Exception as e:
             logger.error(f"Error in Component 4: {e}")
             return self._mock_analysis(panel_size_kw, annual_generation_kwh, annual_consumption_kwh)
 
+    # If you also want to update the mock analysis to use annualized ROI, update:
     def _mock_analysis(self, panel_size_kw: float, annual_gen: float,
                        annual_cons: float) -> ROIAnalysis:
         investment = panel_size_kw * 160000
         annual_savings = min(annual_gen, annual_cons) * 45.0
         net_profit = annual_savings * 20 - investment
-        roi = (net_profit / investment) * 100 if investment > 0 else 0
+        # Calculate annualized ROI (CAGR)
+        if investment > 0 and net_profit > 0:
+            total_roi = net_profit / investment
+            annualized_roi = ((1 + total_roi) ** (1 / 20) - 1) * 100
+        else:
+            annualized_roi = 0
         payback = investment / annual_savings if annual_savings > 0 else 20
 
         return ROIAnalysis(
             total_investment_lkr=investment,
-            expected_roi_percent=roi,
+            expected_roi_percent=annualized_roi,  # ← Now annualized
             expected_payback_years=payback,
-            recommendation="Good investment" if roi > 0 else "Review sizing"
+            recommendation="Good investment" if annualized_roi > 0 else "Review sizing"
         )
 
 
-# ============================================================================
 # MAIN INTEGRATED SYSTEM
-# ============================================================================
-
 class IntegratedSolarSystem:
     """Main integrated system combining all 4 components"""
 
@@ -607,10 +600,7 @@ class IntegratedSolarSystem:
         print("\n" + "=" * 70)
 
 
-# ============================================================================
 # MAIN EXECUTION
-# ============================================================================
-
 def main():
     """Main execution with command line arguments"""
     args = parse_arguments()
