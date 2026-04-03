@@ -20,7 +20,11 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, r2_score
 
+import json
 from src.data.splitter import DataSplitter
+from src.features.selection import MODEL_FEATURES
+from src.preprocessing.outliers import OutlierRemover
+from utils.utils_config import load_config
 from src.models.similarity_engine import SimilarityEngine
 from src.training.baseline import BaselineEvaluator
 from src.training.tuner import ModelTuner
@@ -55,7 +59,7 @@ def _comparison_table(
     """
     W = 78
     print("\n" + "═" * W)
-    print("  THESIS MODEL COMPARISON TABLE")
+    print("  MODEL COMPARISON TABLE")
     print("  Target: Efficiency (kWh/kW)  |  Lower MAE = Better")
     print("═" * W)
     print(f"  {'Model':<22} {'Approach':<16} {'MAE':>8} {'RMSE':>8} "
@@ -106,11 +110,34 @@ def train() -> None:
     df = pd.read_csv(DATA_PATH)
     print(f"\nLoaded: {len(df):,} records  |  {df.shape[1]} columns")
 
-    # -- 1. Split --------------------------------------------------
-    X_train, X_test, y_train, y_test, groups_train = DataSplitter().split(df)
+    # -- 1. Split by household ------------------------------------
+    splitter = DataSplitter()
+    df_train, df_test = splitter.split(df)
 
-    # Keep df rows aligned to test indices — needed by baseline + similarity
-    df_test_raw = df.loc[X_test.index]
+    # -- 2. Outlier removal on train only --------------------------
+    # Bounds fitted on train, saved for reproducibility. Test untouched.
+    oc            = load_config()["outlier_detection"]
+    artifacts_dir = SCRIPT_DIR / "models" / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    remover  = OutlierRemover()
+    df_train = remover.fit_transform(df_train, column=oc["target_column"])
+    remover.save(artifacts_dir / "outlier_remover.pkl")
+
+    # Save split record for reproducibility
+    split_record = {"train_accounts": sorted(df_train["ACCOUNT_NO"].unique().tolist()),
+                    "test_accounts":  sorted(df_test["ACCOUNT_NO"].unique().tolist())}
+    with open(artifacts_dir / "split_record.json", "w") as f:
+        json.dump(split_record, f, indent=2)
+
+    # Extract X / y / groups
+    feature_cols = [col for col in MODEL_FEATURES if col in df_train.columns]
+    X_train      = df_train[feature_cols]
+    y_train      = df_train["Efficiency"]
+    groups_train = df_train["ACCOUNT_NO"].reset_index(drop=True)
+    X_test       = df_test[[col for col in MODEL_FEATURES if col in df_test.columns]]
+    y_test       = df_test["Efficiency"]
+    df_test_raw  = df_test
 
     # -- 2. Physics + untuned baseline ----------------------------
     print("\n" + "=" * 60)
@@ -153,7 +180,7 @@ def train() -> None:
     print("STEP 4 - ML HYPERPARAMETER TUNING  (GroupKFold)")
     print("=" * 60)
 
-    tuner        = ModelTuner(n_folds=5)
+    tuner        = ModelTuner()
     tuned_models = tuner.tune_all(X_train, y_train, groups_train)
 
     # -- 5. Evaluate ML models -------------------------------------
@@ -166,7 +193,7 @@ def train() -> None:
         cv_mae_scores=tuner.cv_mae_scores,
     )
 
-    # -- 6. Thesis comparison table --------------------------------
+    # -- 6. comparison table --------------------------------
     _comparison_table(
         physics_mae=physics_mae,
         physics_rmse=physics_rmse,

@@ -19,7 +19,6 @@ from pathlib import Path
 from utils.utils_config import load_config
 from src.data.loader import DataLoader
 from src.preprocessing.missing import MissingValueHandler
-from src.preprocessing.outliers import OutlierRemover
 from src.features.engineering import FeatureEngineer
 from src.features.selection import FeatureSelector
 
@@ -35,7 +34,6 @@ def run_pipeline(save_intermediates: bool = False) -> None:
     loc  = cfg["location"]["primary"]
     paths = cfg["paths"]
     imp   = cfg["imputation"]
-    oc    = cfg["outlier_detection"]
     res   = cfg["residential"]
     fs    = cfg["feature_selection"]
 
@@ -85,32 +83,22 @@ def run_pipeline(save_intermediates: bool = False) -> None:
     if save_intermediates:
         loader.save(df, DATA_PROC_DIR / "01_imputed.csv")
 
-    # -- STEP 3: Outlier removal -----------------------------------
-    print("\nSTEP 3 - OUTLIER REMOVAL")
-    print("-" * 40)
-
-    df = OutlierRemover(iqr_threshold=oc["iqr_threshold"]).remove(
-        df, column=oc["target_column"]
-    )
-
-    # -- STEP 4: Feature engineering + target ---------------------
-    print("\nSTEP 4 - FEATURE ENGINEERING + TARGET")
+    # -- STEP 3: Feature engineering + target ---------------------
+    print("\nSTEP 3 - FEATURE ENGINEERING + TARGET")
     print("-" * 40)
 
     df = FeatureEngineer().create_all_features(df)
-    # create_all_features() detects EXPORT_kWh and creates
-    # Efficiency = EXPORT_kWh / INV_CAPACITY automatically.
 
-    # -- STEP 5: Feature selection ---------------------------------
-    print("\nSTEP 5 - FEATURE SELECTION")
+    # -- STEP 4: Feature selection ---------------------------------
+    print("\nSTEP 4 - FEATURE SELECTION")
     print("-" * 40)
 
     df = FeatureSelector().select_features(
         df, correlation_threshold=fs["correlation_threshold"]
     )
 
-    # -- STEP 6: Residential filter --------------------------------
-    print("\nSTEP 6 - RESIDENTIAL FILTER")
+    # -- STEP 5: Residential filter --------------------------------
+    print("\nSTEP 5 - RESIDENTIAL FILTER")
     print("-" * 40)
 
     before = len(df)
@@ -118,8 +106,8 @@ def run_pipeline(save_intermediates: bool = False) -> None:
     print(f"  Removed {before - len(df):,} records > {res['max_capacity_kw']} kW")
     print(f"  Remaining: {len(df):,}")
 
-    # -- STEP 7: Save ----------------------------------------------
-    print("\nSTEP 7 - SAVE")
+    # -- STEP 6: Save ----------------------------------------------
+    print("\nSTEP 6 - SAVE")
     print("-" * 40)
 
     DATA_PROC_DIR.mkdir(parents=True, exist_ok=True)

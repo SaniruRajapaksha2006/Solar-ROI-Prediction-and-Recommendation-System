@@ -81,7 +81,7 @@ class FeatureSelector:
         print("=" * 60)
         return df
 
-    # ── Private ───────────────────────────────────────────────────────────────
+    # -- Private ---------------------------------------------------------------
 
     def _drop_listed(self, df: pd.DataFrame,
                      cols_to_drop: list[str]) -> pd.DataFrame:
