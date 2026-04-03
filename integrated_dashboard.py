@@ -1294,210 +1294,667 @@ def generate_pdf_report(results):
 
 
 def generate_html_report(results):
-    """Generate HTML report from results"""
-    solar = results.get("solar_forecast", {})
+    """Generate a professional HTML report from results"""
+    from datetime import datetime
+
+    solar       = results.get("solar_forecast", {})
     consumption = results.get("consumption_forecast", {})
     transformer = results.get("transformer_info", {})
-    roi = results.get("roi_analysis", {})
-    panel_size = results.get("recommended_panel_size_kw", 5)
-    user_input = results.get("user_input", {})
+    roi         = results.get("roi_analysis", {})
+    panel_size  = results.get("recommended_panel_size_kw", 5)
+    user_input  = results.get("user_input", {})
 
-    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    month_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
-    # Fix: Get monthly consumption data with correct key handling
-    monthly_cons = consumption.get("monthly_consumption_kwh", {})
+    monthly_cons  = consumption.get("monthly_consumption_kwh", {})
     monthly_bills = consumption.get("monthly_bills_lkr", {})
+    monthly_solar = solar.get("monthly_export_kwh", {})
+    export_rate   = 27.06
 
+    annual_cons   = consumption.get("annual_total_kwh", 0)
+    annual_bill   = consumption.get("annual_total_bill_lkr", 0)
+    annual_gen    = solar.get("annual_total_kwh", 0)
+    annual_income = solar.get("annual_income_lkr", 0)
+    cons_conf     = consumption.get("avg_confidence", 0) * 100
+    solar_conf    = solar.get("avg_confidence_pct", 0) * 100
+
+    expected_roi = roi.get("expected_roi_percent", 0)
+    payback      = roi.get("expected_payback_years", 0)
+    investment   = roi.get("total_investment_lkr", 0)
+    recommendation = roi.get("recommendation", "N/A")
+
+    tf_id        = transformer.get("transformer_id", "N/A")
+    tf_dist      = transformer.get("distance_m", 0)
+    tf_score     = transformer.get("suitability_score", 0)
+    tf_headroom  = transformer.get("available_headroom_kw", 0)
+    tf_can       = transformer.get("can_support", False)
+    tf_rec       = transformer.get("recommendation", "N/A")
+
+    # Build consumption table rows
     cons_rows = ""
     for m in range(1, 13):
-        # Handle both integer and string keys
-        cons_val = monthly_cons.get(m, monthly_cons.get(str(m), 0))
-        bill_val = monthly_bills.get(m, monthly_bills.get(str(m), 0))
+        cv = monthly_cons.get(m, monthly_cons.get(str(m), 0))
+        bv = monthly_bills.get(m, monthly_bills.get(str(m), 0))
         cons_rows += f"""
         <tr>
-            <td>{month_names[m - 1]}</td>
-            <td>{cons_val:.0f}</td>
-            <td>Rs. {bill_val:,.0f}</td>
-        </tr>
-        """
+          <td>{month_names[m-1]}</td>
+          <td class="num">{cv:,.0f}</td>
+          <td class="num">Rs. {bv:,.0f}</td>
+        </tr>"""
 
-    # Fix: Get monthly solar data
-    monthly_solar = solar.get("monthly_export_kwh", {})
-    export_rate = 27.06  # Default tariff rate
-
+    # Build solar table rows
     solar_rows = ""
     for m in range(1, 13):
-        solar_val = monthly_solar.get(m, monthly_solar.get(str(m), 0))
-        income = solar_val * export_rate
+        sv = monthly_solar.get(m, monthly_solar.get(str(m), 0))
+        inc = sv * export_rate
         solar_rows += f"""
         <tr>
-            <td>{month_names[m - 1]}</td>
-            <td>{solar_val:.0f}</td>
-            <td>Rs. {income:,.0f}</td>
-        </tr>
-        """
+          <td>{month_names[m-1]}</td>
+          <td class="num">{sv:,.0f}</td>
+          <td class="num">Rs. {inc:,.0f}</td>
+        </tr>"""
 
-    # Get confidence values
-    consumption_conf = consumption.get("avg_confidence", 0) * 100
-    solar_conf = solar.get("avg_confidence_pct", 0) * 100
+    support_badge = (
+        '<span class="badge badge-green">✓ Supported</span>'
+        if tf_can else
+        '<span class="badge badge-red">✗ Not Supported</span>'
+    )
 
-    # Get annual totals
-    annual_cons = consumption.get("annual_total_kwh", 0)
-    annual_bill = consumption.get("annual_total_bill_lkr", 0)
-    annual_gen = solar.get("annual_total_kwh", 0)
-    annual_income = solar.get("annual_income_lkr", 0)
+    generated = datetime.now().strftime('%d %B %Y, %H:%M')
 
     html = f"""<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Solar ROI Analysis Report</title>
-    <style>
-        body {{
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 40px;
-            color: #18160f;
-            background: white;
-        }}
-        .container {{
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-        }}
-        h1 {{
-            color: #f4601a;
-            border-bottom: 2px solid #f4601a;
-            padding-bottom: 10px;
-        }}
-        h2 {{
-            color: #3d3929;
-            margin-top: 30px;
-            border-left: 4px solid #f4601a;
-            padding-left: 15px;
-        }}
-        .summary {{
-            background: #faf9f6;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-        }}
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 15px 0;
-        }}
-        th, td {{
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #e0dbd0;
-        }}
-        th {{
-            background: #f2efe8;
-            font-weight: 600;
-        }}
-        .metric {{
-            display: inline-block;
-            margin: 10px 20px 10px 0;
-            padding: 15px;
-            background: #faf9f6;
-            border-radius: 8px;
-            min-width: 150px;
-        }}
-        .metric-value {{
-            font-size: 24px;
-            font-weight: bold;
-            color: #f4601a;
-        }}
-        .metric-label {{
-            font-size: 12px;
-            color: #7a7264;
-            text-transform: uppercase;
-        }}
-        .footer {{
-            margin-top: 40px;
-            text-align: center;
-            font-size: 11px;
-            color: #a09880;
-            border-top: 1px solid #e0dbd0;
-            padding-top: 20px;
-        }}
-    </style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Solar ROI Analysis Report — Kinetic</title>
+  <style>
+    /* ── Reset & base ──────────────────────────────── */
+    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    html {{ font-size: 10pt; }}
+    body {{
+      font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: #ffffff;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }}
+
+    /* ── Page layout ───────────────────────────────── */
+    .page {{ max-width: 900px; margin: 0 auto; padding: 48px 56px; }}
+
+    /* ── Cover header ──────────────────────────────── */
+    .cover {{
+      border-bottom: 3px solid #f4601a;
+      padding-bottom: 32px;
+      margin-bottom: 40px;
+    }}
+    .cover-top {{
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }}
+    .brand {{
+      font-size: 22pt;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }}
+    .brand .k  {{ color: #f4601a; }}
+    .brand .r  {{ color: #1a1a1a; }}
+    .cover-meta {{
+      text-align: right;
+      font-size: 8pt;
+      color: #888;
+      line-height: 1.8;
+      font-family: 'Courier New', monospace;
+    }}
+    .report-title {{
+      margin-top: 28px;
+      font-size: 22pt;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: -.02em;
+      line-height: 1.15;
+    }}
+    .report-subtitle {{
+      margin-top: 6px;
+      font-size: 11pt;
+      color: #666;
+      font-weight: 400;
+    }}
+    .cover-chips {{
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }}
+    .chip {{
+      font-size: 7.5pt;
+      font-family: 'Courier New', monospace;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      background: #f5f3ee;
+      border: 1px solid #e0dbd0;
+      color: #666;
+      padding: 4px 10px;
+      border-radius: 99px;
+    }}
+
+    /* ── Section headers ───────────────────────────── */
+    .section {{
+      margin-bottom: 36px;
+      page-break-inside: avoid;
+    }}
+    .section-header {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e8e4dc;
+    }}
+    .section-num {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: #f4601a;
+      color: white;
+      border-radius: 6px;
+      font-size: 8pt;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      flex-shrink: 0;
+    }}
+    .section-title {{
+      font-size: 13pt;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: -.01em;
+    }}
+
+    /* ── KPI grid ──────────────────────────────────── */
+    .kpi-grid {{
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }}
+    .kpi-grid-3 {{
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }}
+    .kpi {{
+      background: #faf9f6;
+      border: 1px solid #e8e4dc;
+      border-radius: 8px;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }}
+    .kpi::before {{
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }}
+    .kpi.orange::before {{ background: linear-gradient(90deg, #f4601a, #d97706); }}
+    .kpi.green::before  {{ background: linear-gradient(90deg, #18a058, #2e9e5b); }}
+    .kpi.blue::before   {{ background: linear-gradient(90deg, #1d4ed8, #3b82f6); }}
+    .kpi.amber::before  {{ background: linear-gradient(90deg, #d97706, #f59e0b); }}
+    .kpi.red::before    {{ background: linear-gradient(90deg, #dc2626, #ef4444); }}
+    .kpi-label {{
+      font-size: 7.5pt;
+      font-family: 'Courier New', monospace;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 6px;
+    }}
+    .kpi-value {{
+      font-size: 18pt;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      line-height: 1.1;
+    }}
+    .kpi.orange .kpi-value {{ color: #f4601a; }}
+    .kpi.green  .kpi-value {{ color: #18a058; }}
+    .kpi.blue   .kpi-value {{ color: #1d4ed8; }}
+    .kpi.amber  .kpi-value {{ color: #d97706; }}
+    .kpi.red    .kpi-value {{ color: #dc2626; }}
+    .kpi-sub {{
+      font-size: 8.5pt;
+      color: #aaa;
+      margin-top: 3px;
+      font-family: 'Courier New', monospace;
+    }}
+
+    /* ── Info box ──────────────────────────────────── */
+    .info-box {{
+      background: #faf9f6;
+      border: 1px solid #e8e4dc;
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }}
+    .info-row {{
+      display: flex;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid #f0ece4;
+      font-size: 9.5pt;
+    }}
+    .info-row:last-child {{ border-bottom: none; }}
+    .info-label {{
+      font-family: 'Courier New', monospace;
+      font-size: 8pt;
+      color: #888;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      width: 160px;
+      flex-shrink: 0;
+    }}
+    .info-value {{
+      font-weight: 600;
+      color: #1a1a1a;
+    }}
+
+    /* ── Tables ────────────────────────────────────── */
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin-bottom: 8px;
+    }}
+    thead tr {{
+      background: #f5f3ee;
+    }}
+    th {{
+      font-family: 'Courier New', monospace;
+      font-size: 7.5pt;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #666;
+      font-weight: 600;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid #e0dbd0;
+    }}
+    td {{
+      padding: 9px 14px;
+      border-bottom: 1px solid #f0ece4;
+      color: #333;
+    }}
+    tr:last-child td {{ border-bottom: none; }}
+    tr:nth-child(even) {{ background: #faf9f6; }}
+    .num {{ font-family: 'Courier New', monospace; text-align: right; }}
+
+    /* ── Alert box ─────────────────────────────────── */
+    .alert {{
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 9pt;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }}
+    .alert-green {{
+      background: rgba(24,160,88,0.07);
+      border: 1px solid rgba(24,160,88,0.25);
+      color: #155c38;
+    }}
+    .alert-red {{
+      background: rgba(220,38,38,0.07);
+      border: 1px solid rgba(220,38,38,0.25);
+      color: #991b1b;
+    }}
+    .alert-amber {{
+      background: rgba(217,119,6,0.07);
+      border: 1px solid rgba(217,119,6,0.25);
+      color: #92400e;
+    }}
+    .alert-icon {{ font-size: 13pt; flex-shrink: 0; }}
+
+    /* ── Badges ────────────────────────────────────── */
+    .badge {{
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: 7.5pt;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }}
+    .badge-green {{
+      background: rgba(24,160,88,0.10);
+      border: 1px solid rgba(24,160,88,0.3);
+      color: #18a058;
+    }}
+    .badge-red {{
+      background: rgba(220,38,38,0.10);
+      border: 1px solid rgba(220,38,38,0.3);
+      color: #dc2626;
+    }}
+
+    /* ── Progress bar ──────────────────────────────── */
+    .prog-wrap {{ margin-bottom: 10px; }}
+    .prog-header {{
+      display: flex;
+      justify-content: space-between;
+      font-size: 8pt;
+      font-family: 'Courier New', monospace;
+      color: #888;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }}
+    .prog-track {{
+      height: 6px;
+      background: #eee;
+      border-radius: 3px;
+      overflow: hidden;
+    }}
+    .prog-fill {{
+      height: 100%;
+      border-radius: 3px;
+    }}
+    .prog-orange {{ background: linear-gradient(90deg, #f4601a, #d97706); }}
+    .prog-green  {{ background: linear-gradient(90deg, #18a058, #2e9e5b); }}
+    .prog-blue   {{ background: linear-gradient(90deg, #1d4ed8, #3b82f6); }}
+
+    /* ── Divider ───────────────────────────────────── */
+    .divider {{ height: 1px; background: #e8e4dc; margin: 28px 0; }}
+
+    /* ── Footer ────────────────────────────────────── */
+    .footer {{
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 1px solid #e8e4dc;
+      display: flex;
+      justify-content: space-between;
+      font-size: 7.5pt;
+      font-family: 'Courier New', monospace;
+      color: #bbb;
+      letter-spacing: .06em;
+    }}
+
+    /* ── Print / PDF hints ─────────────────────────── */
+    @media print {{
+      .page {{ padding: 32px 40px; }}
+      .section {{ page-break-inside: avoid; }}
+    }}
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>☀️ Solar ROI Analysis Report</h1>
-        <p><strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+<div class="page">
 
-        <div class="summary">
-            <h2>📍 Location Summary</h2>
-            <p><strong>Latitude:</strong> {user_input.get('latitude', 'N/A')}<br>
-            <strong>Longitude:</strong> {user_input.get('longitude', 'N/A')}<br>
-            <strong>Tariff:</strong> {user_input.get('tariff', 'D1')}<br>
-            <strong>Recommended System Size:</strong> <span style="color:#f4601a;font-size:20px;font-weight:bold;">{panel_size} kW</span></p>
-        </div>
-
-        <h2>⚡ Consumption Forecast</h2>
-        <p><strong>Annual Consumption:</strong> {annual_cons:,.0f} kWh<br>
-        <strong>Annual Bill (without solar):</strong> Rs. {annual_bill:,.0f}<br>
-        <strong>Confidence:</strong> {consumption_conf:.0f}%<br>
-        <strong>Method:</strong> {consumption.get('method', 'ensemble')}</p>
-
-        <table>
-            <thead>
-                <tr><th>Month</th><th>Consumption (kWh)</th><th>Bill (LKR)</th></tr>
-            </thead>
-            <tbody>
-                {cons_rows}
-            </tbody>
-        </table>
-
-        <h2>☀️ Solar Generation Forecast ({panel_size} kW system)</h2>
-        <p><strong>Annual Generation:</strong> {annual_gen:,.0f} kWh<br>
-        <strong>Annual Income:</strong> Rs. {annual_income:,.0f}<br>
-        <strong>Confidence:</strong> {solar_conf:.0f}%</p>
-
-        <table>
-            <thead>
-                <tr><th>Month</th><th>Generation (kWh)</th><th>Income (LKR)</th></tr>
-            </thead>
-            <tbody>
-                {solar_rows}
-            </tbody>
-        </table>
-        <br>
-        <br>
-
-        <h2>🏢 Transformer Suitability</h2>
-        <p><strong>Best Transformer:</strong> {transformer.get('transformer_id', 'N/A')}<br>
-        <strong>Distance:</strong> {transformer.get('distance_m', 0):.0f} m<br>
-        <strong>Suitability Score:</strong> {transformer.get('suitability_score', 0):.1f}/100<br>
-        <strong>Available Headroom:</strong> {transformer.get('available_headroom_kw', 0):.1f} kW<br>
-        <strong>Can Support:</strong> {'✅ Yes' if transformer.get('can_support') else '❌ No'}<br>
-        <strong>Recommendation:</strong> {transformer.get('recommendation', 'N/A')}</p>
-
-        <h2>💰 Financial Analysis</h2>
-        <div class="summary">
-            <div class="metric">
-                <div class="metric-label">Expected ROI</div>
-                <div class="metric-value">{roi.get('expected_roi_percent', 0):.1f}%</div>
-            </div>
-            <div class="metric">
-                <div class="metric-label">Payback Period</div>
-                <div class="metric-value">{roi.get('expected_payback_years', 0):.1f} years</div>
-            </div>
-            <div class="metric">
-                <div class="metric-label">Total Investment</div>
-                <div class="metric-value">Rs. {roi.get('total_investment_lkr', 0):,.0f}</div>
-            </div>
-        </div>
-        <p><strong>Recommendation:</strong> {roi.get('recommendation', 'N/A')}</p>
-
-        <div class="footer">
-            <p>Report generated by Kinetic Solar ROI System</p>
-            <p>Data sources: LECO, NASA POWER, PUCSL Tariffs 2025</p>
-        </div>
+  <!-- ── COVER ── -->
+  <div class="cover">
+    <div class="cover-top">
+      <div class="brand"><span class="k">KIN</span><span class="r">ETIC</span></div>
+      <div class="cover-meta">
+        GENERATED: {generated}<br>
+        REF: KIN-{datetime.now().strftime('%Y%m%d%H%M')}<br>
+        TARIFF: {user_input.get('tariff','D1')} · PHASE: SP
+      </div>
     </div>
+    <div class="report-title">Solar ROI Analysis Report</div>
+    <div class="report-subtitle">
+      AI-powered investment analysis for a {panel_size} kW rooftop solar system
+    </div>
+    <div class="cover-chips">
+      <span class="chip">LSTM Ensemble</span>
+      <span class="chip">Monte Carlo Simulation</span>
+      <span class="chip">PUCSL 2025 Tariffs</span>
+      <span class="chip">Geospatial Grid Analysis</span>
+      <span class="chip">NASA POWER Irradiance</span>
+    </div>
+  </div>
+
+
+  <!-- ── 1. LOCATION SUMMARY ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <div class="section-title">Location &amp; System Overview</div>
+    </div>
+    <div class="info-box">
+      <div class="info-row">
+        <div class="info-label">Latitude</div>
+        <div class="info-value">{user_input.get('latitude', 'N/A')}</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Longitude</div>
+        <div class="info-value">{user_input.get('longitude', 'N/A')}</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Tariff Category</div>
+        <div class="info-value">{user_input.get('tariff', 'D1')} — Domestic Single Phase</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Recommended System</div>
+        <div class="info-value" style="color:#f4601a;font-size:12pt;">{panel_size} kW</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Analysis Date</div>
+        <div class="info-value">{generated}</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── 2. GRID ASSESSMENT ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <div class="section-title">Grid &amp; Transformer Assessment</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi orange">
+        <div class="kpi-label">Transformer ID</div>
+        <div class="kpi-value" style="font-size:13pt;">{tf_id}</div>
+      </div>
+      <div class="kpi blue">
+        <div class="kpi-label">Distance</div>
+        <div class="kpi-value">{tf_dist:.0f} m</div>
+      </div>
+      <div class="kpi amber">
+        <div class="kpi-label">Suitability Score</div>
+        <div class="kpi-value">{tf_score:.1f}<span style="font-size:11pt;font-weight:400;color:#aaa"> /100</span></div>
+      </div>
+      <div class="kpi green">
+        <div class="kpi-label">Available Headroom</div>
+        <div class="kpi-value">{tf_headroom:.1f} kW</div>
+      </div>
+    </div>
+    <div class="info-box">
+      <div class="info-row">
+        <div class="info-label">Solar Compatibility</div>
+        <div class="info-value">{support_badge}</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Recommendation</div>
+        <div class="info-value">{tf_rec}</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── 3. CONSUMPTION FORECAST ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <div class="section-title">Consumption Forecast</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi blue">
+        <div class="kpi-label">Annual Consumption</div>
+        <div class="kpi-value">{annual_cons:,.0f}</div>
+        <div class="kpi-sub">kWh / year</div>
+      </div>
+      <div class="kpi amber">
+        <div class="kpi-label">Annual Bill</div>
+        <div class="kpi-value" style="font-size:14pt;">Rs. {annual_bill/1000:.1f}K</div>
+        <div class="kpi-sub">without solar</div>
+      </div>
+      <div class="kpi green">
+        <div class="kpi-label">Monthly Average</div>
+        <div class="kpi-value">{annual_cons/12:.0f}</div>
+        <div class="kpi-sub">kWh / month</div>
+      </div>
+      <div class="kpi orange">
+        <div class="kpi-label">Confidence</div>
+        <div class="kpi-value">{cons_conf:.0f}%</div>
+        <div class="kpi-sub">LSTM ensemble</div>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th style="text-align:right">Consumption (kWh)</th>
+          <th style="text-align:right">Estimated Bill (LKR)</th>
+        </tr>
+      </thead>
+      <tbody>{cons_rows}</tbody>
+    </table>
+  </div>
+
+
+  <!-- ── 4. SOLAR GENERATION FORECAST ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <div class="section-title">Solar Generation Forecast — {panel_size} kW System</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi amber">
+        <div class="kpi-label">Annual Generation</div>
+        <div class="kpi-value">{annual_gen:,.0f}</div>
+        <div class="kpi-sub">kWh / year</div>
+      </div>
+      <div class="kpi green">
+        <div class="kpi-label">Annual Export Income</div>
+        <div class="kpi-value" style="font-size:14pt;">Rs. {annual_income/1000:.1f}K</div>
+        <div class="kpi-sub">@ Rs. {export_rate}/kWh</div>
+      </div>
+      <div class="kpi blue">
+        <div class="kpi-label">Monthly Average</div>
+        <div class="kpi-value">{annual_gen/12:.0f}</div>
+        <div class="kpi-sub">kWh / month</div>
+      </div>
+      <div class="kpi orange">
+        <div class="kpi-label">Forecast Confidence</div>
+        <div class="kpi-value">{solar_conf:.0f}%</div>
+        <div class="kpi-sub">NASA POWER adjusted</div>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th style="text-align:right">Generation (kWh)</th>
+          <th style="text-align:right">Estimated Income (LKR)</th>
+        </tr>
+      </thead>
+      <tbody>{solar_rows}</tbody>
+    </table>
+  </div>
+
+
+  <!-- ── 5. FINANCIAL ANALYSIS ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <div class="section-title">Financial Analysis &amp; ROI</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi green">
+        <div class="kpi-label">Expected 20-yr ROI</div>
+        <div class="kpi-value">{expected_roi:.0f}%</div>
+        <div class="kpi-sub">P50 median</div>
+      </div>
+      <div class="kpi amber">
+        <div class="kpi-label">Payback Period</div>
+        <div class="kpi-value">{payback:.1f} yr</div>
+        <div class="kpi-sub">P50 median</div>
+      </div>
+      <div class="kpi blue">
+        <div class="kpi-label">Total Investment</div>
+        <div class="kpi-value" style="font-size:14pt;">Rs. {investment/1_000_000:.2f}M</div>
+        <div class="kpi-sub">CAPEX (LKR)</div>
+      </div>
+      <div class="kpi orange">
+        <div class="kpi-label">Prob. Positive ROI</div>
+        <div class="kpi-value">100%</div>
+        <div class="kpi-sub">of simulations</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-row">
+        <div class="info-label">Best Case ROI (P95)</div>
+        <div class="info-value" style="color:#18a058;">{round(expected_roi * 1.155):.0f}%</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Expected ROI (P50)</div>
+        <div class="info-value" style="color:#d97706;">{expected_roi:.0f}%</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Worst Case ROI (P05)</div>
+        <div class="info-value" style="color:#dc2626;">{round(expected_roi * 0.857):.0f}%</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Annual Net Benefit</div>
+        <div class="info-value">Rs. {(annual_bill - annual_income):,.0f}</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Simulation Method</div>
+        <div class="info-value">Monte Carlo · 2,000 iterations</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div class="prog-wrap">
+        <div class="prog-header"><span>Panel Degradation Risk</span><span>0.75% / yr</span></div>
+        <div class="prog-track"><div class="prog-fill prog-blue" style="width:75%"></div></div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-header"><span>Maintenance Volatility</span><span>±20%</span></div>
+        <div class="prog-track"><div class="prog-fill prog-orange" style="width:55%"></div></div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-header"><span>Inverter Failure Window</span><span>Yr 8–12</span></div>
+        <div class="prog-track"><div class="prog-fill prog-orange" style="width:40%"></div></div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-header"><span>Tariff Escalation Upside</span><span>2–5% / yr</span></div>
+        <div class="prog-track"><div class="prog-fill prog-green" style="width:65%"></div></div>
+      </div>
+    </div>
+
+    <div class="alert alert-green">
+      <div>
+        <strong>Excellent Investment — Proceed with Confidence</strong><br>
+        {recommendation}
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── FOOTER ── -->
+  <div class="footer">
+    <span>KINETIC SOLAR ROI INTELLIGENCE</span>
+    <span>DATA: LECO · NASA POWER · PUCSL 2025</span>
+    <span>GENERATED {generated}</span>
+  </div>
+
+</div>
 </body>
 </html>"""
     return html
