@@ -93,26 +93,57 @@ def run_integrated_analysis(lat, lon, months, radius_m):
 
 
 # GPS COMPONENT
-def gps_component():
-    col_btn, col_status = st.columns([1, 2])
-    with col_btn:
-        get_gps = st.button("📍 Use GPS", key="gps_btn", help="Auto-fill coordinates from your device location")
-    if get_gps:
-        try:
-            from streamlit_js_eval import get_geolocation
-            loc = get_geolocation()
-            if loc and "coords" in loc:
-                coords = loc["coords"]
-                return {"lat": round(float(coords["latitude"]), 6), "lon": round(float(coords["longitude"]), 6)}
-            else:
-                with col_status:
-                    st.warning("Could not get location — allow browser access")
-        except ImportError:
-            with col_status:
-                st.info("Install streamlit-js-eval for GPS: `pip install streamlit-js-eval`")
-    return None
+def location_picker():
+    # Interactive map to pick location - returns coordinates for form
 
+    st.markdown('<div class="k-section-label">📍 Select Location on Map</div>', unsafe_allow_html=True)
 
+    import folium
+    from streamlit_folium import st_folium
+
+    # Get current values
+    current_lat = st.session_state.user_input.get("latitude", 6.8511)
+    current_lon = st.session_state.user_input.get("longitude", 79.9212)
+
+    # Create map
+    m = folium.Map(location=[current_lat, current_lon], zoom_start=13, height=350)
+
+    # Add marker for current location
+    folium.Marker(
+        [current_lat, current_lon],
+        popup="📍 Your selected location",
+        icon=folium.Icon(color="red", icon="info-sign")
+    ).add_to(m)
+
+    m.add_child(folium.LatLngPopup())
+
+    # Display map
+    map_data = st_folium(m, width="100%", height=350, returned_objects=["last_clicked"])
+
+    # Check if user clicked on map
+    if map_data and map_data.get("last_clicked"):
+        clicked = map_data["last_clicked"]
+        if clicked and "lat" in clicked and "lng" in clicked:
+            new_lat = round(clicked["lat"], 6)
+            new_lon = round(clicked["lng"], 6)
+
+            # Update session state
+            st.session_state.user_input["latitude"] = new_lat
+            st.session_state.user_input["longitude"] = new_lon
+            st.session_state.gps_active = True
+
+            st.session_state.lat_input = new_lat
+            st.session_state.lon_input = new_lon
+
+            st.success(f"📍 Location set to: {new_lat}, {new_lon}")
+            st.rerun()
+
+    # Show current location
+    st.caption(
+        f"Current location: {st.session_state.user_input['latitude']:.6f}, {st.session_state.user_input['longitude']:.6f}")
+
+    # Return current coordinates for the form
+    return st.session_state.user_input["latitude"], st.session_state.user_input["longitude"]
 
 # MAP BUILD
 def build_map(transformer_list, user_lat, user_lon, selected_code=None):
@@ -282,7 +313,7 @@ def home_page():
                 with Monte Carlo risk analysis.
             </p>
             <div class="k-feat-list">
-                <div class="k-feat-item"><div class="k-feat-dot"></div>Solar Generation Forecast — LSTM ensemble model</div>
+                <div class="k-feat-item"><div class="k-feat-dot"></div>Solar Generation Forecast — RandomForest model</div>
                 <div class="k-feat-item"><div class="k-feat-dot"></div>Geospatial Transformer Grid Mapping</div>
                 <div class="k-feat-item"><div class="k-feat-dot"></div>PUCSL D1 Tariff Consumption Prediction</div>
                 <div class="k-feat-item"><div class="k-feat-dot"></div>Monte Carlo ROI &amp; Risk Simulation</div>
@@ -306,40 +337,157 @@ def home_page():
         """, unsafe_allow_html=True)
         st.markdown('<div class="k-form-body">', unsafe_allow_html=True)
 
+        # ========== LOCATION SECTION ==========
         st.markdown('<div class="k-section-label">Location</div>', unsafe_allow_html=True)
-        gps_location = gps_component()
+
+        # Initialize session state keys for inputs
+        if "lat_input" not in st.session_state:
+            st.session_state.lat_input = st.session_state.user_input["latitude"]
+        if "lon_input" not in st.session_state:
+            st.session_state.lon_input = st.session_state.user_input["longitude"]
+
+        # Location picker (map)
+        st.markdown('<div class="k-section-label" style="margin-top:12px;">Select on Map</div>',
+                    unsafe_allow_html=True)
+
+        import folium
+        from streamlit_folium import st_folium
+
+        current_lat = st.session_state.user_input.get("latitude", 6.8511)
+        current_lon = st.session_state.user_input.get("longitude", 79.9212)
+
+        m = folium.Map(location=[current_lat, current_lon], zoom_start=13, height=300)
+        folium.Marker(
+            [current_lat, current_lon],
+            popup="📍 Your location",
+            icon=folium.Icon(color="red", icon="info-sign")
+        ).add_to(m)
+        m.add_child(folium.LatLngPopup())
+
+        map_data = st_folium(m, width="100%", height=300, returned_objects=["last_clicked"])
+
+        if map_data and map_data.get("last_clicked"):
+            clicked = map_data["last_clicked"]
+            if clicked and "lat" in clicked and "lng" in clicked:
+                st.session_state.user_input["latitude"] = round(clicked["lat"], 6)
+                st.session_state.user_input["longitude"] = round(clicked["lng"], 6)
+                st.session_state.lat_input = round(clicked["lat"], 6)
+                st.session_state.lon_input = round(clicked["lng"], 6)
+                st.session_state.gps_active = True
+                st.rerun()
+
         col_a, col_b = st.columns(2)
         with col_a:
-            lat = st.number_input("Latitude", value=gps_location["lat"] if gps_location else st.session_state.user_input["latitude"], format="%.6f", step=0.0001, key="lat_input")
+            lat = st.number_input(
+                "Latitude",
+                format="%.6f",
+                step=0.0001,
+                key="lat_input"
+            )
         with col_b:
-            lon = st.number_input("Longitude", value=gps_location["lon"] if gps_location else st.session_state.user_input["longitude"], format="%.6f", step=0.0001, key="lon_input")
+            lon = st.number_input(
+                "Longitude",
+                format="%.6f",
+                step=0.0001,
+                key="lon_input"
+            )
+
+        if lat != st.session_state.user_input["latitude"]:
+            st.session_state.user_input["latitude"] = lat
+        if lon != st.session_state.user_input["longitude"]:
+            st.session_state.user_input["longitude"] = lon
 
         st.markdown('<div class="k-divider"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="k-section-label">Monthly Usage — Last 3 Months (kWh)</div>', unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            m1 = st.number_input("Month 1", value=float(st.session_state.user_input["months"][9]), step=10.0, key="m1_input")
-        with c2:
-            m2 = st.number_input("Month 2", value=float(st.session_state.user_input["months"][10]), step=10.0, key="m2_input")
-        with c3:
-            m3 = st.number_input("Month 3", value=float(st.session_state.user_input["months"][11]), step=10.0, key="m3_input")
 
+        # ========== DYNAMIC MONTH INPUT SECTION (FULLY STYLED) ==========
+        st.markdown('<div class="k-section-label">Your Electricity Usage</div>', unsafe_allow_html=True)
+        st.caption("Enter your monthly consumption for the months you have electricity bills.")
+
+        month_names_full = ["January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"]
+        month_short = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+        # How many months slider
+        num_months = st.slider("How many months of data do you have?",
+                               min_value=2, max_value=12, value=3,
+                               key="num_months_input")
+
+
+        # Store months data
+        months_data = {}
+
+        # Create styled rows for each month
+        for i in range(num_months):
+            # Row container
+            col1, col2, col3 = st.columns([2, 3, 1])
+
+            with col1:
+                month = st.selectbox(
+                    f"Month",
+                    options=list(range(1, 13)),
+                    format_func=lambda x: month_names_full[x - 1],
+                    index=8 + i if i < 3 else 8,
+                    key=f"styled_month_{i}",
+                    label_visibility="collapsed"
+                )
+
+            with col2:
+                consumption = st.number_input(
+                    "kWh",
+                    min_value=0.0,
+                    max_value=2000.0,
+                    value=300.0,
+                    step=10.0,
+                    key=f"styled_consumption_{i}",
+                    label_visibility="collapsed"
+                )
+
+            with col3:
+                st.markdown(f'<div class="k-month-badge">{month_short[month - 1]}</div>', unsafe_allow_html=True)
+
+            months_data[month] = consumption
+
+        st.markdown('</div>', unsafe_allow_html=True)  # Close container
+
+        # Validation and summary
+        if len(set(months_data.keys())) != num_months:
+            st.warning("Please select different months (no duplicates)")
+            months_valid = False
+        else:
+            months_valid = True
         st.markdown('<div class="k-divider"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="k-section-label">Search Radius</div>', unsafe_allow_html=True)
-        radius_m = st.number_input("Search Radius (m)", value=st.session_state.user_input["radius_m"], min_value=100, max_value=5000, step=100, key="radius_input")
 
-        st.markdown('</div></div>', unsafe_allow_html=True)
+        # ========== SEARCH RADIUS ==========
+        st.markdown('<div class="k-section-label">🔍 Search Radius</div>', unsafe_allow_html=True)
+        radius_m = st.number_input(
+            "Search Radius (m)",
+            value=st.session_state.user_input["radius_m"],
+            min_value=100,
+            max_value=5000,
+            step=100,
+            key="radius_input"
+        )
 
+        st.markdown('</div></div>', unsafe_allow_html=True)  # Close form-body and form-card
+
+        # ========== RUN BUTTON ==========
         if st.button("▶  Run Full AI Analysis", use_container_width=True, type="primary"):
-            st.session_state.user_input = {
-                "latitude": lat, "longitude": lon,
-                "months": {9: m1, 10: m2, 11: m3},
-                "radius_m": radius_m
-            }
-            st.session_state.analysis_running = True
-            st.rerun()
+            if months_valid:
+                st.session_state.user_input = {
+                    "latitude": lat,
+                    "longitude": lon,
+                    "months": months_data,
+                    "radius_m": radius_m
+                }
+                st.session_state.analysis_running = True
+                st.rerun()
+            else:
+                st.error("Please fix the month selection (no duplicates)")
 
-        st.markdown('<p class="k-form-note">Analysis includes grid assessment, solar forecast, consumption prediction and ROI modelling.</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<p class="k-form-note">Analysis includes grid assessment, solar forecast, consumption prediction and ROI modelling.</p>',
+            unsafe_allow_html=True)
 
 
 # LOADING PAGE
