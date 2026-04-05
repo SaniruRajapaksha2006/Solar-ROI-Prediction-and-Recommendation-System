@@ -20,7 +20,11 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, r2_score
 
+import json
 from src.data.splitter import DataSplitter
+from src.features.selection import MODEL_FEATURES
+from src.preprocessing.outliers import OutlierRemover
+from utils.utils_config import load_config
 from src.models.similarity_engine import SimilarityEngine
 from src.training.baseline import BaselineEvaluator
 from src.training.tuner import ModelTuner
@@ -54,10 +58,10 @@ def _comparison_table(
     Approach order: Physics (deterministic) → Similarity (statistical) → ML (learned)
     """
     W = 78
-    print("\n" + "═" * W)
-    print("  THESIS MODEL COMPARISON TABLE")
+    print("\n" + "=" * W)
+    print("  MODEL COMPARISON TABLE")
     print("  Target: Efficiency (kWh/kW)  |  Lower MAE = Better")
-    print("═" * W)
+    print("=" * W)
     print(f"  {'Model':<22} {'Approach':<16} {'MAE':>8} {'RMSE':>8} "
           f"{'R²':>7} {'MAPE%':>7}")
     print("  " + "-" * (W - 2))
@@ -90,7 +94,7 @@ def _comparison_table(
 
     print(f"\n  Best ML vs Physics   : {ml_vs_physics:+.1f}% MAE improvement")
     print(f"  Best ML vs Similarity: {ml_vs_similarity:+.1f}% MAE improvement")
-    print("═" * W)
+    print("=" * W)
 
 
 # -- Main training flow ---------------------------------------------------------
@@ -106,16 +110,39 @@ def train() -> None:
     df = pd.read_csv(DATA_PATH)
     print(f"\nLoaded: {len(df):,} records  |  {df.shape[1]} columns")
 
-    # -- 1. Split --------------------------------------------------
-    X_train, X_test, y_train, y_test, groups_train = DataSplitter().split(df)
+    # -- 1. Split by household ------------------------------------
+    splitter = DataSplitter()
+    df_train, df_test = splitter.split(df)
 
-    # Keep df rows aligned to test indices — needed by baseline + similarity
-    df_test_raw = df.loc[X_test.index]
+    # -- 2. Outlier removal on train only --------------------------
+    # Bounds fitted on train, saved for reproducibility. Test untouched.
+    oc            = load_config()["outlier_detection"]
+    artifacts_dir = SCRIPT_DIR / "models" / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    remover  = OutlierRemover()
+    df_train = remover.fit_transform(df_train, column=oc["target_column"])
+    remover.save(artifacts_dir / "outlier_remover.pkl")
+
+    # Save split record for reproducibility
+    split_record = {"train_accounts": sorted(df_train["ACCOUNT_NO"].unique().tolist()),
+                    "test_accounts":  sorted(df_test["ACCOUNT_NO"].unique().tolist())}
+    with open(artifacts_dir / "split_record.json", "w") as f:
+        json.dump(split_record, f, indent=2)
+
+    # Extract X / y / groups
+    feature_cols = [col for col in MODEL_FEATURES if col in df_train.columns]
+    X_train      = df_train[feature_cols]
+    y_train      = df_train["Efficiency"]
+    groups_train = df_train["ACCOUNT_NO"].reset_index(drop=True)
+    X_test       = df_test[[col for col in MODEL_FEATURES if col in df_test.columns]]
+    y_test       = df_test["Efficiency"]
+    df_test_raw  = df_test
 
     # -- 2. Physics + untuned baseline ----------------------------
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("STEP 2 - PHYSICS + BASELINE COMPARISON")
-    print("=" * 60)
+    print("=" * 78)
     baseline = BaselineEvaluator()
     baseline.compare(X_train, X_test, y_train, y_test, df_test_raw=df_test_raw)
 
@@ -131,9 +158,9 @@ def train() -> None:
     ) * 100
 
     # -- 3. Similarity matching ------------------------------------
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("STEP 3 - SIMILARITY MATCHING  (Statistical baseline)")
-    print("=" * 60)
+    print("=" * 78)
 
     sim_engine = SimilarityEngine()   # reads n_neighbors, metric, features from config
     sim_engine.fit(X_train, y_train)
@@ -149,24 +176,24 @@ def train() -> None:
     print(f"  Temperature, and Cloud_Factor — and averaged their Efficiency.")
 
     # -- 4. Tune ML models -----------------------------------------
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("STEP 4 - ML HYPERPARAMETER TUNING  (GroupKFold)")
-    print("=" * 60)
+    print("=" * 78)
 
-    tuner        = ModelTuner(n_folds=5)
+    tuner        = ModelTuner()
     tuned_models = tuner.tune_all(X_train, y_train, groups_train)
 
     # -- 5. Evaluate ML models -------------------------------------
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("STEP 5 - ML EVALUATION + OVERFITTING CHECK")
-    print("=" * 60)
+    print("=" * 78)
 
     ml_results = ModelEvaluator().evaluate(
         tuned_models, X_test, y_test,
         cv_mae_scores=tuner.cv_mae_scores,
     )
 
-    # -- 6. Thesis comparison table --------------------------------
+    # -- 6. comparison table --------------------------------
     _comparison_table(
         physics_mae=physics_mae,
         physics_rmse=physics_rmse,
@@ -180,18 +207,18 @@ def train() -> None:
     best_name = ml_results.iloc[0]["Model"]
     ModelSaver().save(tuned_models, best_name)
 
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("  TRAINING COMPLETE")
     print(f"  Best ML model : {best_name}")
     print(f"  Physics MAE   : {physics_mae:.4f} kWh/kW")
     print(f"  Similarity MAE: {sim_metrics['MAE']:.4f} kWh/kW")
     print(f"  Best ML MAE   : {ml_results.iloc[0]['Test MAE']:.4f} kWh/kW")
-    print("=" * 60)
+    print("=" * 78)
 
 
 if __name__ == "__main__":
     try:
         train()
     except Exception as e:
-        print(f"\n[✗] Training failed: {e}")
+        print(f"\n Training failed: {e}")
         raise

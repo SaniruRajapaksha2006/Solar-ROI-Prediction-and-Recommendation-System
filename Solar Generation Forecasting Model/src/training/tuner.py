@@ -18,19 +18,19 @@ _TUNING_CONFIGS = [
     (
         "ridge",
         Ridge(),
-        {"ridge__alpha": [0.01, 0.1, 1.0, 10.0, 100.0]},
+        {"ridge__alpha": [0.1, 1.0, 10.0]}, # Simplified
     ),
     (
         "lasso",
-        Lasso(max_iter=10_000),   # max_iter suppresses ConvergenceWarning
-        {"lasso__alpha": [0.001, 0.01, 0.1, 1.0, 10.0]},
+        Lasso(max_iter=10_000),   
+        {"lasso__alpha": [0.001, 0.01, 0.1]}, # Removed 1.0 and 10.0 (they kill features)
     ),
     (
         "svr",
-        SVR(max_iter=5_000),      # max_iter suppresses ConvergenceWarning
+        SVR(max_iter=5_000),      
         {
-            "svr__C":       [1, 10, 100],
-            "svr__epsilon": [0.01, 0.05, 0.1],
+            "svr__C":       [10, 100, 500], # Increased C to allow more complex fits
+            "svr__epsilon": [0.01, 0.1],
             "svr__kernel":  ["rbf"],
         },
     ),
@@ -38,22 +38,18 @@ _TUNING_CONFIGS = [
         "rf",
         RandomForestRegressor(random_state=42),
         {
-            # n_estimators: 200 added — captures more trees without overfitting
-            "rf__n_estimators":      [50, 100, 200],
-            # max_depth: 3 added — shallow trees generalise better on noisy data;
-            # None allows full growth for comparison
-            "rf__max_depth":         [3, 5, 10, None],
-            "rf__min_samples_split": [2, 5, 10],
+            "rf__n_estimators": [100, 200],
+            "rf__max_depth": [10, 20, None], # Let the tree grow deeper!
+            "rf__min_samples_split": [2, 5],
         },
     ),
     (
         "gb",
         GradientBoostingRegressor(random_state=42),
         {
-            "gb__n_estimators":      [50, 100, 200],
-            "gb__max_depth":         [3, 4, 5],
-            "gb__learning_rate":     [0.05, 0.1, 0.2],
-            "gb__min_samples_split": [5, 10],
+            "gb__n_estimators": [100, 200],
+            "gb__learning_rate": [0.05, 0.1],
+            "gb__max_depth": [4, 6, 8], # Increased depth
         },
     ),
 ]
