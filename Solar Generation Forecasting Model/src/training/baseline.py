@@ -2,8 +2,7 @@
 Physics-based baseline comparison before tuning.
 
 Compares naive Physics_Pred (GHI × 0.80 × Days) against quick untuned
-sklearn models. Any ML model that cannot beat the physics baseline on
-MAE does not justify its complexity.
+sklearn models. Evaluates whether ML models outperform the deterministic physics baseline
 """
 
 import numpy as np
@@ -14,6 +13,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
+from typing import Optional
 
 
 # Conservative default params — fast fit for comparison, not final tuning
@@ -93,7 +93,7 @@ class BaselineEvaluator:
     # -- Private ---------------------------------------------------------------
 
     def _physics_baseline(self, y_test: pd.Series,
-                          df_test_raw: pd.DataFrame) -> float | None:
+                          df_test_raw: pd.DataFrame) -> Optional[float]:
         if df_test_raw is None or "Physics_Pred" not in df_test_raw.columns:
             print("  (Physics baseline skipped — pass df_test_raw to enable)\n")
             return None

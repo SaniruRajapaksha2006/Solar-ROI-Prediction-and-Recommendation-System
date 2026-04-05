@@ -15,10 +15,6 @@ Why these 3 features?
   Temperature  — degrades panel efficiency via temperature coefficient
   Cloud_Factor — captures cloud cover independently of GHI magnitude
 
-If it performs well, it shows the historical data has
-strong self-similarity. If ML beats it, it proves ML captures interactions
-that simple distance cannot.
-
 Comparison table position:
   Method            | Approach      | Expected MAE | Key claim
   ------------------┼---------------┼--------------┼--------------------------
@@ -32,7 +28,7 @@ import pandas as pd
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
+from typing import Optional
 from utils.utils_config import get_similarity_config
 
 
@@ -58,7 +54,7 @@ class SimilarityEngine:
         self._scaler          = StandardScaler()
         self._nn              = NearestNeighbors(n_neighbors=self.n_neighbors,
                                                  metric=self.metric)
-        self._train_efficiency: np.ndarray | None = None
+        self._train_efficiency: Optional[np.ndarray] = None
         self._is_fitted = False
 
     # -- Fit -------------------------------------------------------------------
