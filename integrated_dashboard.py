@@ -1220,7 +1220,7 @@ def tab_roi(roi, consumption, solar):
 
     # Stat Row
     st.markdown(stat_row([
-        ("Expected ROI", f"{expected_roi:.0f}<span style='font-size:16px;'>%</span>", "over 20 years", "green"),
+        ("Expected ROI", f"{expected_roi:.0f}<span style='font-size:16px;'>%</span>", "annually", "green"),
         ("Payback Period", f"{payback:.1f}", "years (median)", "amber"),
         ("Total Investment", f"Rs. {investment / 1_000_000:.2f}M", "LKR (CAPEX)", "blue"),
         ("Worst-Case ROI", f"{worst_roi}<span style='font-size:16px;'>%</span>", "5th percentile", "orange"),
@@ -1830,12 +1830,22 @@ def generate_html_report(results):
       color: #bbb;
       letter-spacing: .06em;
     }}
-
-    /* ── Print / PDF hints ─────────────────────────── */
-    @media print {{
-      .page {{ padding: 32px 40px; }}
-      .section {{ page-break-inside: avoid; }}
+    
+    /* Print PDF  */
+    @page {{
+      size: A4 portrait;
+      margin: 1.5cm 1.5cm;
     }}
+
+    @media print {{
+      .page {{ padding: 0 !important; max-width: 100% !important; margin: 0 !important; }}
+      .section {{ page-break-inside: auto; }}
+      .kpi-grid, .info-box, tr, .alert {{ page-break-inside: avoid !important; }}
+      .kpi-value {{ font-size: 14pt !important; }}
+      .kpi-label {{ font-size: 7pt !important; }}
+    }}
+  </style>
+
   </style>
 </head>
 <body>
