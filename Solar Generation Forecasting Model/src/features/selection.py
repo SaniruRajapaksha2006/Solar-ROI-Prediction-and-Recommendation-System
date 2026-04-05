@@ -25,7 +25,6 @@ def get_model_features() -> list[str]:
     return get_column_config()["model_features"]
 
 
-# Module-level convenience — import MODEL_FEATURES from here like before
 MODEL_FEATURES     = get_model_features()
 NON_FEATURE_COLS   = get_non_feature_cols()
 COLS_TO_DROP       = get_cols_to_drop()
@@ -67,11 +66,11 @@ class FeatureSelector:
         df = self._drop_listed(df, cols_to_drop)
 
         # Pass 2: correlation filter — skip non-feature cols and always-keep cols
-        # df = self._drop_low_correlation(
-        #     df,
-        #     non_feature_cols=non_feature_cols,
-        #     threshold=correlation_threshold,
-        # )
+        df = self._drop_low_correlation(
+            df,
+            non_feature_cols=non_feature_cols,
+            threshold=correlation_threshold,
+        )
 
         print(f"\n  {initial} → {df.shape[1]} columns  "
               f"({initial - df.shape[1]} dropped)")
@@ -81,7 +80,7 @@ class FeatureSelector:
         print("=" * 60)
         return df
 
-    # ── Private ───────────────────────────────────────────────────────────────
+    # -- Private ---------------------------------------------------------------
 
     def _drop_listed(self, df: pd.DataFrame,
                      cols_to_drop: list[str]) -> pd.DataFrame:

@@ -1,6 +1,6 @@
 from pathlib import Path
 from functools import lru_cache
-from typing import Any
+from typing import Any, Dict, Optional, Union
 
 import yaml
 
@@ -8,7 +8,7 @@ _CONFIG_PATH = Path(__file__).resolve().parents[1] / "config.yaml"
 
 
 @lru_cache(maxsize=1)
-def load_config(path: str | Path = None) -> dict:
+def load_config(path: Optional[Union[str, Path]] = None) -> dict:
     """
     Load and cache config.yaml.
     """
@@ -22,7 +22,7 @@ def load_config(path: str | Path = None) -> dict:
         return yaml.safe_load(f)
 
 
-def get_roi_constants() -> dict[str, Any]:
+def get_roi_constants() -> Dict[str, Any]:
     """
     Return ROI/financial constants as a flat dict.
     Used by predict.py and any ROI calculation.
@@ -36,7 +36,7 @@ def get_roi_constants() -> dict[str, Any]:
     return load_config()["roi"]
 
 
-def get_physics_constants() -> dict[str, Any]:
+def get_physics_constants() -> Dict[str, Any]:
     """
     Return solar physics constants.
     Used by feature_engineering.py and fetch_future_weather.py.
@@ -52,7 +52,7 @@ def get_physics_constants() -> dict[str, Any]:
     return load_config()["physics"]
 
 
-def get_nasa_params() -> dict[str, str]:
+def get_nasa_params() -> Dict[str, str]:
     """
     Return the NASA API key → column name mapping.
     Used by nasa_power.py, data_pipeline.py, handle_missing.py.
@@ -60,7 +60,7 @@ def get_nasa_params() -> dict[str, str]:
     return load_config()["nasa"]["params"]
 
 
-def get_training_config() -> dict[str, Any]:
+def get_training_config() -> Dict[str, Any]:
     """
     Return training/evaluation constants.
     Used by splitter.py, tuner.py, evaluator.py.
@@ -77,7 +77,7 @@ def get_training_config() -> dict[str, Any]:
     return load_config()["training"]
 
 
-def get_c3s_config() -> dict[str, Any]:
+def get_c3s_config() -> Dict[str, Any]:
     """
     Return C3S SEAS5 API constants.
     Used by fetch_future_weather.py.
@@ -85,16 +85,16 @@ def get_c3s_config() -> dict[str, Any]:
     return load_config()["c3s"]
 
 
-def get_outlier_config() -> dict[str, Any]:
+def get_outlier_config() -> Dict[str, Any]:
     """Return outlier detection config. Used by outliers.py."""
     return load_config()["outlier_detection"]
 
 
-def get_similarity_config() -> dict[str, Any]:
+def get_similarity_config() -> Dict[str, Any]:
     """Return similarity model config. Used by similarity_engine.py."""
     return load_config()["similarity"]
 
 
-def get_feature_selection_config() -> dict[str, Any]:
+def get_feature_selection_config() -> Dict[str, Any]:
     """Return feature selection config. Used by selection.py."""
     return load_config()["feature_selection"]

@@ -2,7 +2,7 @@ import numpy as np
 import json
 import os
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 # Configure Professional Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,7 +19,6 @@ class SolarFinancialModel:
         self.EXPORT_OVER_5: float = 19.61
         self.DISCOUNT_RATE: float = 0.10
         self.PROJECT_LIFETIME: int = 20
-
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         json_filepath = os.path.join(base_dir, json_filename)
@@ -47,7 +46,71 @@ class SolarFinancialModel:
                 {"Name": "System Default Vendor", "Location": "Unknown", "Contact": "N/A", "Specialty": "N/A"}]
 
     def get_system_cost(self, size_kw: float) -> float:
+        """Get aggregated system cost (used for ROI calculation)"""
         return self.PRICING_DATABASE.get(size_kw, size_kw * 200000.0)
+
+    def get_vendor_prices(self, size_kw: float) -> List[Dict[str, Any]]:
+        """Get prices for a specific panel size from all vendors"""
+        vendor_prices = []
+
+        for vendor in self.VENDOR_DATABASE:
+            pricing = vendor.get("pricing", {})
+
+            # Try exact match first
+            size_str = str(size_kw)
+            if size_str in pricing:
+                price = pricing[size_str]
+            else:
+                # Interpolate between nearest sizes
+                price = self._interpolate_price(pricing, size_kw)
+
+            # Calculate price per kW
+            price_per_kw = round(price / size_kw, -2) if size_kw > 0 else 0
+
+            vendor_prices.append({
+                "name": vendor["Name"],
+                "location": vendor["Location"],
+                "contact": vendor["Contact"],
+                "specialty": vendor["Specialty"],
+                "rating": vendor.get("rating", 4.0),
+                "price_lkr": price,
+                "price_per_kw": price_per_kw
+            })
+
+        # Sort by price (cheapest first)
+        vendor_prices.sort(key=lambda x: x["price_lkr"])
+        return vendor_prices
+
+    def _interpolate_price(self, pricing: dict, size_kw: float) -> float:
+        """Interpolate price from available sizes"""
+        if not pricing:
+            return size_kw * 200000
+
+        # Get available sizes as floats
+        sizes = sorted([float(k) for k in pricing.keys()])
+
+        if size_kw <= sizes[0]:
+            return pricing[str(sizes[0])]
+
+        if size_kw >= sizes[-1]:
+            return pricing[str(sizes[-1])]
+
+        # Find lower and upper bounds
+        lower = max([s for s in sizes if s <= size_kw])
+        upper = min([s for s in sizes if s >= size_kw])
+
+        if lower == upper:
+            return pricing[str(lower)]
+
+        lower_price = pricing[str(lower)]
+        upper_price = pricing[str(upper)]
+
+        # Linear interpolation
+        ratio = (size_kw - lower) / (upper - lower)
+        interpolated = lower_price + ratio * (upper_price - lower_price)
+
+        # Round to nearest 1000 for readability
+        return round(interpolated, -3)
 
     def get_export_tariff(self, size_kw: float) -> float:
         return self.EXPORT_UNDER_5 if size_kw <= 5 else self.EXPORT_OVER_5
@@ -59,10 +122,14 @@ class SolarFinancialModel:
         if system_size_kw <= 0 or predicted_annual_generation_kwh <= 0 or predicted_annual_consumption_kwh < 0:
             raise ValueError("System size, generation, and consumption must be valid non-negative numbers.")
 
-        # Force float to prevent NumPy casting errors
+        # Get aggregated price for ROI calculation
         initial_investment_lkr = float(self.get_system_cost(system_size_kw))
         export_tariff_lkr = float(self.get_export_tariff(system_size_kw))
 
+        # Get vendor-specific prices for display
+        vendor_prices = self.get_vendor_prices(system_size_kw)
+        print(f"DEBUG: Getting vendor prices for {system_size_kw} kW")  # ADD THIS
+        print(f"DEBUG: Found {len(vendor_prices)} vendors with prices")
 
         n_sims = 2000
 
@@ -111,8 +178,8 @@ class SolarFinancialModel:
 
             current_import_tariff *= (1 + tariff_escalation)
 
-        roi_array = (total_net_profit / initial_investment_lkr) * 100
-
+        # Calculate Annualized ROI (Compound Annual Growth Rate)
+        roi_array = (((total_net_profit / initial_investment_lkr) ** (1 / self.PROJECT_LIFETIME)) - 1) * 100
 
         expected_roi = np.mean(roi_array)
         expected_payback = np.median(payback_years)
@@ -133,7 +200,6 @@ class SolarFinancialModel:
         else:
             rec = "High Risk / Marginal Return: Consider a different system size or tariff scheme."
 
-
         yearly_net_cashflow = []
         baseline_cum_cashflow = [-initial_investment_lkr]
         p10_cum_cashflow = [-initial_investment_lkr]
@@ -153,21 +219,21 @@ class SolarFinancialModel:
             p10_cum_cashflow.append(round(float(current_cum * 0.85), 2))
             p90_cum_cashflow.append(round(float(current_cum * 1.15), 2))
 
-
         return {
             "System_Size_KW": system_size_kw,
             "Total_Investment_LKR": initial_investment_lkr,
+            "Vendor_Price_Comparison": vendor_prices,  # NEW FIELD
             "Expected_NPV_LKR": round(float(expected_npv), 2),
-            "Expected_ROI_Percent": round(float(expected_roi), 2),
+            "Expected_Annual_ROI_Percent": round(float(expected_roi), 2),
             "Expected_Payback_Years": round(float(expected_payback), 1),
             "Risk_Analysis": {
-                "Worst_Case_ROI_Percent": round(float(worst_case_roi), 2),
+                "Worst_Case_Annual_ROI_Percent": round(float(worst_case_roi), 2),
                 "Worst_Case_NPV_LKR": round(float(worst_case_npv), 2),
                 "Worst_Case_Payback_Years": round(float(worst_case_payback), 1),
                 "Certainty_Score": "High" if worst_case_npv > 0 else "Moderate"
             },
             "Scenario_Analysis": {
-                "Best_Case_ROI_Percent": round(float(best_case_roi), 2),
+                "Best_Case_Annual_ROI_Percent": round(float(best_case_roi), 2),
                 "Shortest_Payback_Years": round(float(shortest_payback), 1),
                 "Probability_Positive_ROI": round(float(prob_positive_roi), 1)
             },
@@ -185,13 +251,19 @@ class SolarFinancialModel:
         }
 
 
-
 # TEST RUN
 if __name__ == "__main__":
     logger.info("Running High-Performance Financial Component Test...")
     roi_model = SolarFinancialModel()
 
     final_output = roi_model.calculate_financial_report(5, 7200, 4800)
+
+    # Print vendor comparison
+    print("\n" + "=" * 60)
+    print("VENDOR PRICE COMPARISON")
+    print("=" * 60)
+    for vendor in final_output.get("Vendor_Price_Comparison", []):
+        print(f"{vendor['name']}: Rs. {vendor['price_lkr']:,} (Rs. {vendor['price_per_kw']:,}/kW)")
 
     # Truncate arrays for readable terminal output
     display_output = final_output.copy()
