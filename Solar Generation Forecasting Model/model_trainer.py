@@ -58,10 +58,10 @@ def _comparison_table(
     Approach order: Physics (deterministic) → Similarity (statistical) → ML (learned)
     """
     W = 78
-    print("\n" + "═" * W)
+    print("\n" + "=" * W)
     print("  MODEL COMPARISON TABLE")
     print("  Target: Efficiency (kWh/kW)  |  Lower MAE = Better")
-    print("═" * W)
+    print("=" * W)
     print(f"  {'Model':<22} {'Approach':<16} {'MAE':>8} {'RMSE':>8} "
           f"{'R²':>7} {'MAPE%':>7}")
     print("  " + "-" * (W - 2))
@@ -94,7 +94,7 @@ def _comparison_table(
 
     print(f"\n  Best ML vs Physics   : {ml_vs_physics:+.1f}% MAE improvement")
     print(f"  Best ML vs Similarity: {ml_vs_similarity:+.1f}% MAE improvement")
-    print("═" * W)
+    print("=" * W)
 
 
 # -- Main training flow ---------------------------------------------------------
@@ -140,9 +140,9 @@ def train() -> None:
     df_test_raw  = df_test
 
     # -- 2. Physics + untuned baseline ----------------------------
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("STEP 2 - PHYSICS + BASELINE COMPARISON")
-    print("=" * 60)
+    print("=" * 78)
     baseline = BaselineEvaluator()
     baseline.compare(X_train, X_test, y_train, y_test, df_test_raw=df_test_raw)
 
@@ -158,9 +158,9 @@ def train() -> None:
     ) * 100
 
     # -- 3. Similarity matching ------------------------------------
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("STEP 3 - SIMILARITY MATCHING  (Statistical baseline)")
-    print("=" * 60)
+    print("=" * 78)
 
     sim_engine = SimilarityEngine()   # reads n_neighbors, metric, features from config
     sim_engine.fit(X_train, y_train)
@@ -176,17 +176,17 @@ def train() -> None:
     print(f"  Temperature, and Cloud_Factor — and averaged their Efficiency.")
 
     # -- 4. Tune ML models -----------------------------------------
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("STEP 4 - ML HYPERPARAMETER TUNING  (GroupKFold)")
-    print("=" * 60)
+    print("=" * 78)
 
     tuner        = ModelTuner()
     tuned_models = tuner.tune_all(X_train, y_train, groups_train)
 
     # -- 5. Evaluate ML models -------------------------------------
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("STEP 5 - ML EVALUATION + OVERFITTING CHECK")
-    print("=" * 60)
+    print("=" * 78)
 
     ml_results = ModelEvaluator().evaluate(
         tuned_models, X_test, y_test,
@@ -207,18 +207,18 @@ def train() -> None:
     best_name = ml_results.iloc[0]["Model"]
     ModelSaver().save(tuned_models, best_name)
 
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("  TRAINING COMPLETE")
     print(f"  Best ML model : {best_name}")
     print(f"  Physics MAE   : {physics_mae:.4f} kWh/kW")
     print(f"  Similarity MAE: {sim_metrics['MAE']:.4f} kWh/kW")
     print(f"  Best ML MAE   : {ml_results.iloc[0]['Test MAE']:.4f} kWh/kW")
-    print("=" * 60)
+    print("=" * 78)
 
 
 if __name__ == "__main__":
     try:
         train()
     except Exception as e:
-        print(f"\n[✗] Training failed: {e}")
+        print(f"\n Training failed: {e}")
         raise
