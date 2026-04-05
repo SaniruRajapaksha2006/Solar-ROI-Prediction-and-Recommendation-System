@@ -74,9 +74,9 @@ def _print_results(df: pd.DataFrame, inv_capacity_kw: float) -> None:
     tariff = load_config()["roi"]["net_plus_tariff_lkr"]
     W      = 72
 
-    print("\n" + "═" * W)
+    print("\n" + "" * W)
     print(f"  SOLAR FORECAST  —  {inv_capacity_kw} kW  |  Tariff: LKR {tariff:.2f}/kWh")
-    print("═" * W)
+    print("" * W)
     print(f"  {'Month':<6} {'Export kWh':>11} {'Lower':>8} {'Upper':>8}"
           f" {'Confidence':>11} {'Income LKR':>12}")
     print("  " + "-" * (W - 2))
@@ -93,7 +93,7 @@ def _print_results(df: pd.DataFrame, inv_capacity_kw: float) -> None:
           f" {'':>8} {'':>8}"
           f" {df['Confidence_Pct'].mean():>10.1f}%"
           f" {df['Estimated_Income_LKR'].sum():>12,.2f}")
-    print("═" * W + "\n")
+    print("" * W + "\n")
 
 
 # -- CLI ------------------------------------------------------------------------

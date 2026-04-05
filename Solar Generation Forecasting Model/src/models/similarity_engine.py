@@ -15,10 +15,6 @@ Why these 3 features?
   Temperature  — degrades panel efficiency via temperature coefficient
   Cloud_Factor — captures cloud cover independently of GHI magnitude
 
-If it performs well, it shows the historical data has
-strong self-similarity. If ML beats it, it proves ML captures interactions
-that simple distance cannot.
-
 Comparison table position:
   Method            | Approach      | Expected MAE | Key claim
   ------------------┼---------------┼--------------┼--------------------------

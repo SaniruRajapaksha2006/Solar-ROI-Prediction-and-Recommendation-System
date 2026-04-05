@@ -71,14 +71,15 @@ def run_pipeline(save_intermediates: bool = False) -> None:
 
     handler       = MissingValueHandler()
     missing_stats = handler.analyse(df)
-    df = handler.impute_ghi(
-        df, missing_stats,
-        latitude=loc["lat"],
-        longitude=loc["lon"],
-        impute_months=imp["months"],
-        start_yr=imp["start_year"],
-        end_yr=imp["end_year"],
-    )
+    if not missing_stats.empty:
+        df = handler.impute_ghi(
+            df, missing_stats,
+            latitude=loc["lat"],
+            longitude=loc["lon"],
+            impute_months=imp["months"],
+            start_yr=imp["start_year"],
+            end_yr=imp["end_year"],
+        )
 
     if save_intermediates:
         loader.save(df, DATA_PROC_DIR / "01_imputed.csv")

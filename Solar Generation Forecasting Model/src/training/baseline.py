@@ -2,8 +2,7 @@
 Physics-based baseline comparison before tuning.
 
 Compares naive Physics_Pred (GHI × 0.80 × Days) against quick untuned
-sklearn models. Any ML model that cannot beat the physics baseline on
-MAE does not justify its complexity.
+sklearn models. Evaluates whether ML models outperform the deterministic physics baseline
 """
 
 import numpy as np
