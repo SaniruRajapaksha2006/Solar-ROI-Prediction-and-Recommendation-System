@@ -143,6 +143,15 @@ class EnsembleForecaster:
                     weighted_sum += forecast[month] * dynamic_weights[name]
             combined[month] = weighted_sum
 
+        user_months = user_data.get('consumption_months', {})
+        if user_months:
+            user_avg = sum(user_months.values()) / len(user_months)
+            model_avg = sum(combined.values()) / 12
+            if model_avg > 0 and user_avg > 0:
+                scale_factor = user_avg / model_avg
+                for m in combined:
+                    combined[m] *= scale_factor
+
         logger.info(f"Ensemble weights: {dynamic_weights}")
         return combined
 
@@ -277,6 +286,16 @@ class EnsembleForecaster:
                                user_data: Dict,
                                method: str) -> Dict:
         # Create result for single-method forecast
+
+        user_months = user_data.get('consumption_months', {})
+        if user_months:
+            user_avg = sum(user_months.values()) / len(user_months)
+            model_avg = sum(forecast.values()) / 12
+            if model_avg > 0 and user_avg > 0:
+                scale_factor = user_avg / model_avg
+                for m in forecast:
+                    forecast[m] *= scale_factor
+
         # Similar to above but with single method
         values = list(forecast.values())
         annual_total = sum(values)
